@@ -206,8 +206,8 @@ whose tray state is not its first toggle says so:
 
 ### Packaging
 
-`build/ktsu.TrayApp.props` and its companion `.targets` are imported into any project that references
-the package. A `DotnetTool` package is RID-agnostic, so a tool that links Avalonia otherwise ships
+`build/ktsu.TrayApp.props` and its companion `.targets` are packed from `TrayApp/msbuild/` and are
+imported into any project that references the package. A `DotnetTool` package is RID-agnostic, so a tool that links Avalonia otherwise ships
 SkiaSharp's and HarfBuzzSharp's native assets for every RID those packages support - Android bionic,
 loongarch, riscv and the rest - plus a native `.pdb` for each one. Measured on a minimal tool:
 **180.9 MiB** without the trimming, **47.6 MiB** with it.

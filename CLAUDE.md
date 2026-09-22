@@ -61,7 +61,7 @@ menu model and its own platform layer, and the library brings everything else. T
 - `TrayApp/Cli/` - Hand-written argument parsing, duration parsing, and the generated usage text
 - `TrayApp/Preferences/DebouncedPreferenceStore.cs` - Synchronous reads and coalesced writes over an
   asynchronous `IPersistenceProvider`
-- `TrayApp/build/ktsu.TrayApp.props` + `.targets` - Shipped in the package; trim the tool payload
+- `TrayApp/msbuild/ktsu.TrayApp.props` + `.targets` - Shipped in the package as `build/`; trim the tool payload
 - `examples/TrayApp.Demo/` - A tray tool with one toggle, and nothing else
 - `scripts/generate-icons.py` - Draws a tray icon pair and a package icon, parameterised
 - `scripts/status-notifier-watcher.py` - A minimal StatusNotifierWatcher, for exercising the Linux tray
@@ -156,8 +156,8 @@ and still run.
 
 ## Packaging
 
-`TrayApp/build/ktsu.TrayApp.props` and `TrayApp/build/ktsu.TrayApp.targets` ship inside the package and
-are imported into any project that references it. A `DotnetTool` package is RID-agnostic, so without
+`TrayApp/msbuild/ktsu.TrayApp.props` and `TrayApp/msbuild/ktsu.TrayApp.targets` are packed to `build/`
+inside the package and are imported into any project that references it. A `DotnetTool` package is RID-agnostic, so without
 them a tool that links Avalonia ships SkiaSharp's and HarfBuzzSharp's native assets for every RID those
 packages support, plus a native `.pdb` for each - 180.9 MiB against 47.6 MiB, measured on a minimal
 tool.
@@ -170,9 +170,32 @@ consumer's own value, set in its project body, is visible in the condition.
 `TrayAppTrimToolRuntimeAssets=false` restores everything; `TrayAppToolRuntimeIdentifiers` adds a RID
 back without giving up the rest.
 
+The source folder is `msbuild/` rather than `build/`, and the `build/` layout NuGet requires is applied
+by `PackagePath` instead. The canonical `.gitignore` ktsu.Sdk syncs (see below) ignores `**/build/`, and
+an exception added to it does not survive: a file added under `TrayApp/build/` is silently dropped from
+the next commit, and the package ships without the props that are the point of it.
+
 `TrayApp/CompatibilitySuppressions.xml` covers the compiler shims Polyfill injects into the net9.0
 build and not the net10.0 one. Every entry is under `System`; if a regeneration adds one that is not,
 that is a real API break between the two target frameworks.
+
+## What the build rewrites underneath you
+
+Two files in this repository are regenerated during a build rather than being the source of truth, and
+both bit once already:
+
+- **ktsu.Sdk syncs its own style files over yours.** `_KtsuSyncStyleConfigFiles` runs before
+  `PrepareForBuild` and copies the SDK package's canonical `editorconfig`, `gitattributes`, `gitignore`
+  and `runsettings` over the repository's, silently. Edits to those four do not survive a build unless
+  they also land in ktsu.Sdk. Opt out with `<KtsuSyncStyleConfigFiles>false</KtsuSyncStyleConfigFiles>`
+  if you ever genuinely need to.
+- **The file header comes from `COPYRIGHT.md`.** That sync also rewrites `.editorconfig`'s
+  `file_header_template` from `$(Copyright)`, which ktsu.Sdk reads out of `COPYRIGHT.md` - and on CI
+  `ktsubuild ci` regenerates `COPYRIGHT.md` first, as `Copyright (c) 2023-<year> ktsu-dev contributors`,
+  for repositories under the `ktsu-dev` owner. A header copied from a repository under a different
+  owner, where KtsuBuild skips that generation, builds locally and then fails IDE0073 on every file in
+  CI. The header, `COPYRIGHT.md` and `file_header_template` have to say the same thing, and that thing
+  is what KtsuBuild generates.
 
 ## CI/CD
 

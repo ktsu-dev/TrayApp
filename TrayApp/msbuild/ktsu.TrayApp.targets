@@ -1,0 +1,21 @@
+<!-- Copyright (c) 2023-2026 ktsu-dev contributors -->
+<Project>
+
+  <!--
+    The companion to build/ktsu.TrayApp.props, and the reason there are two files rather than one.
+
+    NuGet imports a package's build/*.props through Microsoft.Common.props, which runs before the
+    referencing project's own SDK props and before its body. ktsu.Sdk sets
+    CopyDebugSymbolFilesFromPackages and CopyDocumentationFilesFromPackages to true unconditionally
+    in its props - the right default for a library's output directory, and the wrong one for a
+    shipped tool payload, where the native debug symbols alone are 245 MB - so setting them from the
+    props would simply be overwritten. build/*.targets is imported after both, which is late enough
+    to win and still early enough that a consumer's own value, set in its project body, is visible
+    in the condition below.
+  -->
+  <PropertyGroup Condition="'$(TrayAppTrimToolRuntimeAssets)' == 'true'">
+    <CopyDebugSymbolFilesFromPackages>false</CopyDebugSymbolFilesFromPackages>
+    <CopyDocumentationFilesFromPackages>false</CopyDocumentationFilesFromPackages>
+  </PropertyGroup>
+
+</Project>

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright (c) 2026 ktsu-dev contributors
+# Copyright (c) 2023-2026 ktsu-dev contributors
 """Draws the tray icon pair and the NuGet package icon for a tool built on ktsu.TrayApp.
 
 A tray tool needs two images that read as the same mark in two states, at 16 pixels, on a panel of

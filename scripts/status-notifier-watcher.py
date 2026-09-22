@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright (c) 2026 ktsu-dev contributors
+# Copyright (c) 2023-2026 ktsu-dev contributors
 """A minimal StatusNotifierWatcher, so a Linux tray can be exercised end to end in CI.
 
 Avalonia's Linux tray is a StatusNotifierItem published over D-Bus. Nothing appears - and the tray

@@ -26,7 +26,7 @@
   <!-- Shipped inside the package so a consuming tool head inherits the payload trimming without
        copying MSBuild into its own project file. See build/ktsu.TrayApp.props for what they do. -->
   <ItemGroup>
-    <None Include="build/ktsu.TrayApp.props" Pack="true" PackagePath="build/" />
-    <None Include="build/ktsu.TrayApp.targets" Pack="true" PackagePath="build/" />
+    <None Include="msbuild/ktsu.TrayApp.props" Pack="true" PackagePath="build/" />
+    <None Include="msbuild/ktsu.TrayApp.targets" Pack="true" PackagePath="build/" />
   </ItemGroup>
 </Project>

@@ -1,6 +1,6 @@
 MIT License
 
-https://github.com/ktsu-dev/NoSleep
+https://github.com/ktsu-dev/TrayApp
 
 Copyright (c) 2023-2026 ktsu-dev contributors
 
