@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- https://learn.microsoft.com/dotnet/fundamentals/package-validation/diagnostic-ids -->
+<!--
+  Every entry below is a compiler shim Polyfill injects into the net9.0 build and not into the
+  net10.0 one, where the runtime already has it: ExperimentalAttribute and
+  DefaultInterpolatedStringHandler. They differ only in nullable-annotation attributes, which
+  ApiCompatEnableRuleAttributesMustMatch reports as a break between the two target frameworks.
+
+  Nothing here is this library's own API. Regenerate with:
+
+    dotnet pack TrayApp/TrayApp.csproj -c Release /p:ApiCompatGenerateSuppressionFile=true
+
+  and check that every Target is still under System.
+-->
+<Suppressions xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <Suppression>
+    <DiagnosticId>CP0014</DiagnosticId>
+    <Target>M:System.Diagnostics.CodeAnalysis.ExperimentalAttribute.get_UrlFormat:[T:System.Runtime.CompilerServices.NullableContextAttribute]</Target>
+    <Left>lib/net9.0/ktsu.TrayApp.dll</Left>
+    <Right>lib/net10.0/ktsu.TrayApp.dll</Right>
+  </Suppression>
+  <Suppression>
+    <DiagnosticId>CP0014</DiagnosticId>
+    <Target>M:System.Diagnostics.CodeAnalysis.ExperimentalAttribute.set_UrlFormat(System.String):[T:System.Runtime.CompilerServices.NullableContextAttribute]</Target>
+    <Left>lib/net9.0/ktsu.TrayApp.dll</Left>
+    <Right>lib/net10.0/ktsu.TrayApp.dll</Right>
+  </Suppression>
+  <Suppression>
+    <DiagnosticId>CP0014</DiagnosticId>
+    <Target>M:System.Runtime.CompilerServices.DefaultInterpolatedStringHandler.#ctor(System.Int32,System.Int32,System.IFormatProvider,System.Span{System.Char}):[T:System.Runtime.CompilerServices.NullableContextAttribute]</Target>
+    <Left>lib/net9.0/ktsu.TrayApp.dll</Left>
+    <Right>lib/net10.0/ktsu.TrayApp.dll</Right>
+  </Suppression>
+  <Suppression>
+    <DiagnosticId>CP0014</DiagnosticId>
+    <Target>M:System.Runtime.CompilerServices.DefaultInterpolatedStringHandler.AppendFormatted(System.ReadOnlySpan{System.Char},System.Int32,System.String):[T:System.Runtime.CompilerServices.NullableContextAttribute]</Target>
+    <Left>lib/net9.0/ktsu.TrayApp.dll</Left>
+    <Right>lib/net10.0/ktsu.TrayApp.dll</Right>
+  </Suppression>
+  <Suppression>
+    <DiagnosticId>CP0014</DiagnosticId>
+    <Target>M:System.Runtime.CompilerServices.DefaultInterpolatedStringHandler.AppendFormatted(System.ReadOnlySpan{System.Char}):[T:System.Runtime.CompilerServices.NullableContextAttribute]</Target>
+    <Left>lib/net9.0/ktsu.TrayApp.dll</Left>
+    <Right>lib/net10.0/ktsu.TrayApp.dll</Right>
+  </Suppression>
+  <Suppression>
+    <DiagnosticId>CP0014</DiagnosticId>
+    <Target>P:System.Diagnostics.CodeAnalysis.ExperimentalAttribute.UrlFormat:[T:System.Runtime.CompilerServices.NullableAttribute]</Target>
+    <Left>lib/net9.0/ktsu.TrayApp.dll</Left>
+    <Right>lib/net10.0/ktsu.TrayApp.dll</Right>
+  </Suppression>
+  <Suppression>
+    <DiagnosticId>CP0014</DiagnosticId>
+    <Target>T:System.Runtime.CompilerServices.DefaultInterpolatedStringHandler:[T:System.Runtime.CompilerServices.NullableAttribute]</Target>
+    <Left>lib/net9.0/ktsu.TrayApp.dll</Left>
+    <Right>lib/net10.0/ktsu.TrayApp.dll</Right>
+  </Suppression>
+  <Suppression>
+    <DiagnosticId>CP0014</DiagnosticId>
+    <Target>T:System.Runtime.CompilerServices.DefaultInterpolatedStringHandler:[T:System.Runtime.CompilerServices.NullableContextAttribute]</Target>
+    <Left>lib/net9.0/ktsu.TrayApp.dll</Left>
+    <Right>lib/net10.0/ktsu.TrayApp.dll</Right>
+  </Suppression>
+  <Suppression>
+    <DiagnosticId>CP0015</DiagnosticId>
+    <Target>T:System.Diagnostics.CodeAnalysis.ExperimentalAttribute:[T:System.Runtime.CompilerServices.NullableContextAttribute]</Target>
+    <Left>lib/net9.0/ktsu.TrayApp.dll</Left>
+    <Right>lib/net10.0/ktsu.TrayApp.dll</Right>
+  </Suppression>
+</Suppressions>

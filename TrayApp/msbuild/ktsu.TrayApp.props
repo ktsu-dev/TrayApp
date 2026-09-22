@@ -1,0 +1,56 @@
+<!-- Copyright (c) 2023-2026 ktsu-dev contributors -->
+<Project>
+
+  <!--
+    Imported into every project that references ktsu.TrayApp.
+
+    A DotnetTool package is RID-agnostic, so a tool that links Avalonia ships SkiaSharp's and
+    HarfBuzzSharp's native assets for every RID those packages support - Android bionic, loongarch,
+    riscv and the rest - plus a native .pdb for each one. Left alone that is a ~190 MB package
+    against the ~50 MB a desktop tool actually needs, downloaded by everyone who installs it.
+
+    Opting out:
+
+      <PropertyGroup>
+        <TrayAppTrimToolRuntimeAssets>false</TrayAppTrimToolRuntimeAssets>
+      </PropertyGroup>
+
+    restores the full RID set and the package debug symbols. Keeping the trimming but adding a RID
+    back is a one-line change to TrayAppToolRuntimeIdentifiers, which is a semicolon-delimited list
+    with leading and trailing semicolons so Contains() matches a whole entry rather than a prefix.
+  -->
+  <PropertyGroup>
+    <TrayAppTrimToolRuntimeAssets Condition="'$(TrayAppTrimToolRuntimeAssets)' == ''">true</TrayAppTrimToolRuntimeAssets>
+
+    <!-- Musl is left out on purpose: Alpine is a container distribution, where there is no panel to
+         show a tray icon in, and the console mode a tray app falls back to needs no native assets
+         at all. Any runtime missing from this list falls back the same way. -->
+    <TrayAppToolRuntimeIdentifiers Condition="'$(TrayAppToolRuntimeIdentifiers)' == ''">;win-x64;win-x86;win-arm64;osx;osx-x64;osx-arm64;linux-x64;linux-arm64;linux-arm;</TrayAppToolRuntimeIdentifiers>
+  </PropertyGroup>
+
+  <Target Name="_TrimToolRuntimeAssets"
+          AfterTargets="ComputeResolvedFilesToPublishList"
+          Condition="'$(TrayAppTrimToolRuntimeAssets)' == 'true'">
+    <ItemGroup>
+      <_TrayAppToolAsset Include="@(ResolvedFileToPublish)">
+        <NormalizedPath>$([System.String]::Copy('%(ResolvedFileToPublish.RelativePath)').Replace('\','/'))</NormalizedPath>
+      </_TrayAppToolAsset>
+
+      <!-- Only files under runtimes/ have a RID segment to read, so the Split is guarded by the
+           filter rather than being applied to every file in the payload. -->
+      <_TrayAppToolRuntimeAsset Include="@(_TrayAppToolAsset)" Condition="$([System.String]::Copy('%(_TrayAppToolAsset.NormalizedPath)').StartsWith('runtimes/'))">
+        <Rid>$([System.String]::Copy('%(_TrayAppToolAsset.NormalizedPath)').Split('/')[1])</Rid>
+      </_TrayAppToolRuntimeAsset>
+
+      <_TrayAppToolRuntimeAssetToDrop Include="@(_TrayAppToolRuntimeAsset)" Condition="!$(TrayAppToolRuntimeIdentifiers.Contains(';%(_TrayAppToolRuntimeAsset.Rid);'))" />
+
+      <!-- The native debug symbols ride in as content rather than as symbol files, so
+           CopyDebugSymbolFilesFromPackages does not reach them: libSkiaSharp.pdb alone is 80 MB per
+           Windows RID. Nothing can step into these from an installed tool anyway. -->
+      <_TrayAppToolRuntimeAssetToDrop Include="@(_TrayAppToolRuntimeAsset)" Condition="$([System.String]::Copy('%(_TrayAppToolRuntimeAsset.NormalizedPath)').EndsWith('.pdb'))" />
+
+      <ResolvedFileToPublish Remove="@(_TrayAppToolRuntimeAssetToDrop)" />
+    </ItemGroup>
+  </Target>
+
+</Project>

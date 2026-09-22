@@ -1,0 +1,32 @@
+<Project>
+  <Sdk Name="Microsoft.NET.Sdk" />
+  <Sdk Name="ktsu.Sdk" />
+
+  <PropertyGroup>
+    <TargetFrameworks>net10.0;net9.0</TargetFrameworks>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" />
+    <PackageReference Include="Avalonia.Desktop" />
+
+    <!-- Referenced directly for MacOSPlatformOptions, which keeps a tray-only app out of the macOS
+         dock. Avalonia.Desktop already brings it in transitively; KTSU0006 wants the dependency
+         declared rather than borrowed. -->
+    <PackageReference Include="Avalonia.Native" />
+
+    <!-- Abstractions only. The concrete persistence provider is the consuming tool's choice and is
+         handed in through TrayAppBuilder.Preferences, so nothing here forces a storage backend, a
+         serializer, or a file system on a tool that persists nothing. -->
+    <PackageReference Include="ktsu.Essentials" />
+
+    <PackageReference Include="Polyfill" PrivateAssets="all" />
+  </ItemGroup>
+
+  <!-- Shipped inside the package so a consuming tool head inherits the payload trimming without
+       copying MSBuild into its own project file. See build/ktsu.TrayApp.props for what they do. -->
+  <ItemGroup>
+    <None Include="msbuild/ktsu.TrayApp.props" Pack="true" PackagePath="build/" />
+    <None Include="msbuild/ktsu.TrayApp.targets" Pack="true" PackagePath="build/" />
+  </ItemGroup>
+</Project>

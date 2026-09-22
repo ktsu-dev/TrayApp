@@ -1,0 +1,30 @@
+<Project>
+  <Sdk Name="MSTest.Sdk" />
+  <Sdk Name="ktsu.Sdk" />
+
+  <PropertyGroup>
+    <IsTestProject>true</IsTestProject>
+    <TargetFramework>net10.0</TargetFramework>
+    <TargetFrameworks></TargetFrameworks>
+
+    <!-- CA1861: prefer static readonly fields over constant array arguments. Hoisting an assertion's
+         expected values into a field moves them away from the case that reads them, which costs more in a
+         test than the allocation it saves. -->
+    <NoWarn>$(NoWarn);CA1861</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="ktsu.Essentials" />
+    <PackageReference Include="ktsu.Essentials.PersistenceProviders.InMemory" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\TrayApp\TrayApp.csproj" />
+  </ItemGroup>
+
+  <!-- One embedded PNG so the resource-name resolution TrayIconSet does can be tested for real,
+       including the failure message that lists what the assembly actually has. -->
+  <ItemGroup>
+    <EmbeddedResource Include="Assets\sample.png" />
+  </ItemGroup>
+</Project>
