@@ -66,6 +66,8 @@ menu model and its own platform layer, and the library brings everything else. T
 - `scripts/generate-icons.py` - Draws a tray icon pair and a package icon, parameterised
 - `scripts/status-notifier-watcher.py` - A minimal StatusNotifierWatcher, for exercising the Linux tray
   without a panel
+- `scripts/click-tray-menu.py` - Clicks an entry in a running tool's tray menu over D-Bus, and prints the
+  menu either side of it
 
 ### Dependencies
 
@@ -153,6 +155,18 @@ Success is the watcher logging a registered `org.kde.StatusNotifierItem-...`, th
 five seconds, and an exit code of 0. An early or non-zero exit means the teardown handling is wrong.
 The fallback is the same command with no `DISPLAY`: it must print the "staying in the terminal" notice
 and still run.
+
+That proves the icon came up. `scripts/click-tray-menu.py` proves the menu behind it works, by driving
+the `com.canonical.dbusmenu` interface the item exports:
+
+```bash
+python3 scripts/click-tray-menu.py "$(grep -o 'org.kde.StatusNotifierItem-[0-9-]*' watcher.log | head -1)" Running
+```
+
+It prints the menu either side of the click, so the whole chain is visible from the outside: the entry's
+checked state flips, the disabled status line re-reads itself from the tool's getter, and - for a
+persisted toggle - the preference file lands under `~/.config`. Assertions on `TrayMenu` cover the model;
+this is what covers the projection onto native menu items.
 
 ## Packaging
 
