@@ -105,9 +105,21 @@ public class TrayApplicationTests
 	[TestMethod]
 	public void Dispose_IsIdempotent()
 	{
-		TrayApplication host = Host(Definition(), out _);
+		int stops = 0;
+
+		TrayAppDefinition app = TrayAppBuilder.Create("demo")
+			.DisplayName("Demo")
+			.Toggle("One", () => false, _ => { })
+			.OnStop(() => stops++)
+			.Build();
+
+		TrayApplication host = Host(app, out _);
 
 		host.Dispose();
 		host.Dispose();
+
+		// Disposing twice must not release twice. The fallback path disposes the host itself after the run
+		// call throws, and the lifetime's Exit handler has usually disposed it already by then.
+		Assert.AreEqual(0, stops);
 	}
 }
