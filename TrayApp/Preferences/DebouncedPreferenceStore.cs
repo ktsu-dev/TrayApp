@@ -142,7 +142,7 @@ internal sealed class DebouncedPreferenceStore : IDisposable
 		}
 		catch (Exception ex)
 		{
-			Console.Error.WriteLine($"Could not save preferences: {ex.Message}");
+			await Console.Error.WriteLineAsync($"Could not save preferences: {ex.Message}").ConfigureAwait(false);
 		}
 	}
 

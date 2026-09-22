@@ -38,38 +38,12 @@ public static class DurationParser
 
 		while (index < span.Length)
 		{
-			int digitsStart = index;
-			while (index < span.Length && (char.IsAsciiDigit(span[index]) || span[index] == '.'))
-			{
-				index++;
-			}
-
-			if (index == digitsStart)
+			if (!TryReadPart(span, ref index, out double partSeconds))
 			{
 				return false;
 			}
 
-			if (!double.TryParse(span[digitsStart..index], NumberStyles.Float, CultureInfo.InvariantCulture, out double value) || value < 0)
-			{
-				return false;
-			}
-
-			int unitStart = index;
-			while (index < span.Length && char.IsAsciiLetter(span[index]))
-			{
-				index++;
-			}
-
-			// A bare number is only allowed when it is the whole value: "90" means ninety minutes, but "5m5"
-			// is a typo, not five minutes and five more.
-			bool isWholeValue = digitsStart == 0 && index == span.Length;
-
-			if (!TryGetUnitSeconds(span[unitStart..index], isWholeValue, out double unitSeconds))
-			{
-				return false;
-			}
-
-			totalSeconds += value * unitSeconds;
+			totalSeconds += partSeconds;
 			sawAnyPart = true;
 		}
 
@@ -79,6 +53,48 @@ public static class DurationParser
 		}
 
 		duration = TimeSpan.FromSeconds(totalSeconds);
+		return true;
+	}
+
+	/// <summary>
+	/// Reads one number/unit pair, advancing past it.
+	/// </summary>
+	private static bool TryReadPart(ReadOnlySpan<char> span, ref int index, out double partSeconds)
+	{
+		partSeconds = 0;
+
+		int digitsStart = index;
+		while (index < span.Length && (char.IsAsciiDigit(span[index]) || span[index] == '.'))
+		{
+			index++;
+		}
+
+		if (index == digitsStart)
+		{
+			return false;
+		}
+
+		if (!double.TryParse(span[digitsStart..index], NumberStyles.Float, CultureInfo.InvariantCulture, out double value) || value < 0)
+		{
+			return false;
+		}
+
+		int unitStart = index;
+		while (index < span.Length && char.IsAsciiLetter(span[index]))
+		{
+			index++;
+		}
+
+		// A bare number is only allowed when it is the whole value: "90" means ninety minutes, but "5m5"
+		// is a typo, not five minutes and five more.
+		bool isWholeValue = digitsStart == 0 && index == span.Length;
+
+		if (!TryGetUnitSeconds(span[unitStart..index], isWholeValue, out double unitSeconds))
+		{
+			return false;
+		}
+
+		partSeconds = value * unitSeconds;
 		return true;
 	}
 

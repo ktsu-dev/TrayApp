@@ -36,7 +36,6 @@ internal sealed class TrayApplication : Application, IDisposable
 	// icon itself has to wait, because its constructor reaches for a platform handle that does not exist
 	// until Avalonia has finished starting.
 	private readonly List<(TrayMenuItem Model, NativeMenuItem Native)> entries = [];
-	private readonly NativeMenu nativeMenu = [];
 
 	private TrayIcon? trayIcon;
 	private DispatcherTimer? expiryTimer;
@@ -63,6 +62,15 @@ internal sealed class TrayApplication : Application, IDisposable
 	}
 
 	/// <summary>
+	/// Gets the native menu the model was projected onto.
+	/// </summary>
+	/// <remarks>
+	/// Exposed for the tests, which assert that the projection matches the model without a display. The
+	/// projection is built in the constructor, so it is there to read before anything has started.
+	/// </remarks>
+	internal NativeMenu NativeMenu { get; } = [];
+
+	/// <summary>
 	/// Gets a value indicating whether the tray icon came up.
 	/// </summary>
 	/// <remarks>
@@ -81,7 +89,7 @@ internal sealed class TrayApplication : Application, IDisposable
 	{
 		menu.QuitRequested += OnQuitRequested;
 
-		trayIcon = new TrayIcon { Menu = nativeMenu, IsVisible = true };
+		trayIcon = new TrayIcon { Menu = NativeMenu, IsVisible = true };
 
 		// A left click is the fastest way to flip the first switch on Windows. Linux status-notifier hosts
 		// and macOS mostly open the menu instead, which is why the menu carries the same toggle.
@@ -146,7 +154,7 @@ internal sealed class TrayApplication : Application, IDisposable
 		{
 			if (item is TraySeparatorItem)
 			{
-				nativeMenu.Add(new NativeMenuItemSeparator());
+				NativeMenu.Add(new NativeMenuItemSeparator());
 				continue;
 			}
 
@@ -163,7 +171,7 @@ internal sealed class TrayApplication : Application, IDisposable
 				native.Click += (_, _) => Activate(model);
 			}
 
-			nativeMenu.Add(native);
+			NativeMenu.Add(native);
 			entries.Add((item, native));
 		}
 	}

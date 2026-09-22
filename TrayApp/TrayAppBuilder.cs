@@ -53,7 +53,7 @@ public sealed class TrayAppBuilder
 	private readonly string name;
 	private readonly List<TrayMenuItem> items = [];
 	private readonly List<TrayToggleItem> toggles = [];
-	private readonly List<AppOption> options = [];
+	private readonly List<AppOption> appOptions = [];
 	private readonly List<StatusDetail> statusDetails = [];
 
 	private string? displayName;
@@ -248,7 +248,7 @@ public sealed class TrayAppBuilder
 	/// <exception cref="ArgumentNullException">Any argument is <see langword="null"/>.</exception>
 	public TrayAppBuilder Flag(IReadOnlyList<string> aliases, string description, Action onSet)
 	{
-		options.Add(AppOption.Flag(aliases, description, onSet));
+		appOptions.Add(AppOption.Flag(aliases, description, onSet));
 		return this;
 	}
 
@@ -266,7 +266,7 @@ public sealed class TrayAppBuilder
 	/// <exception cref="ArgumentNullException">Any argument is <see langword="null"/>.</exception>
 	public TrayAppBuilder Option(IReadOnlyList<string> aliases, string valueName, string description, Action<string> onValue)
 	{
-		options.Add(AppOption.Value(aliases, valueName, description, onValue));
+		appOptions.Add(AppOption.Value(aliases, valueName, description, onValue));
 		return this;
 	}
 
@@ -569,7 +569,7 @@ public sealed class TrayAppBuilder
 		StatusDetails = [.. statusDetails],
 		Items = [.. items],
 		Toggles = [.. toggles],
-		Options = [.. options],
+		Options = [.. appOptions],
 		Icons = icons,
 		IsActive = isActive ?? FirstToggleState(),
 		OnStart = onStart,
