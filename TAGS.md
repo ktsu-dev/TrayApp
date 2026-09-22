@@ -1,0 +1,1 @@
+.NET;C#;dotnet;csharp;tray;tray icon;system tray;notify icon;status item;StatusNotifierItem;menu bar;taskbar;dotnet tool;global tool;CLI;console;Avalonia;cross platform;Windows;macOS;Linux;Shell_NotifyIcon;NSStatusItem;D-Bus;libappindicator;builder;fluent api;SIGTERM;Ctrl+C;graceful shutdown;preferences;settings;persistence;ktsu.Essentials;skeleton;scaffold;library
