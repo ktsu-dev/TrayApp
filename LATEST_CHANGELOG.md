@@ -1,7 +1,6 @@
-## v1.1.2 (patch)
+## v1.1.3 (patch)
 
-Changes since v1.1.1:
+Changes since v1.1.2:
 
-- Never absorb a fatal exception from the tool's own code ([@matt-edmondson](https://github.com/matt-edmondson))
-- [patch] Do not let a refused preference restore kill the tray ([@matt-edmondson](https://github.com/matt-edmondson))
+- Bump the ktsu group with 14 updates ([@dependabot[bot]](https://github.com/dependabot[bot]))
 
