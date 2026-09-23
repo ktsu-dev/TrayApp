@@ -176,11 +176,25 @@ internal sealed class TrayApplication : Application, IDisposable
 		}
 	}
 
-	private void OnTrayIconClicked(object? sender, EventArgs e)
+	/// <summary>
+	/// Flips the first toggle the user could have clicked in the menu.
+	/// </summary>
+	/// <remarks>
+	/// A disabled toggle is skipped, because this is the only activation path with nothing between the
+	/// click and the tool's setter. The menu path is projected onto <see cref="NativeMenuItem"/>s that
+	/// the toolkit greys out and refuses to raise <c>Click</c> for, so the tray icon is where a tool's
+	/// <c>isEnabled</c> predicate would otherwise be silently ignored - the menu would show the action
+	/// as unavailable while a click on the icon ran it anyway.
+	/// <para>
+	/// Internal so that it can be driven without a platform: everything above this reads menu state
+	/// that <see cref="TrayMenu.Refresh"/> populates with no display attached.
+	/// </para>
+	/// </remarks>
+	internal void OnTrayIconClicked(object? sender, EventArgs e)
 	{
 		foreach ((TrayMenuItem model, _) in entries)
 		{
-			if (model is TrayToggleItem)
+			if (model is TrayToggleItem { IsEnabled: true })
 			{
 				Activate(model);
 				return;
@@ -192,8 +206,25 @@ internal sealed class TrayApplication : Application, IDisposable
 
 	private void OnExit(object? sender, ControlledApplicationLifetimeExitEventArgs e) => Dispose();
 
+	/// <summary>
+	/// Runs one item's action and brings the menu back in line with it.
+	/// </summary>
+	/// <remarks>
+	/// The enabled check here is the backstop rather than the guard that matters. A native menu item is
+	/// greyed out at the last refresh, so the toolkit already refuses to raise <c>Click</c> for it - but
+	/// "at the last refresh" is the gap: a tool's state can change between the paint and the click, and
+	/// nothing repaints a menu the user is already looking at. <see cref="TrayMenuItem.IsEnabled"/> is
+	/// the value that painting used, so this agrees with what the user saw rather than second-guessing
+	/// it.
+	/// </remarks>
+	/// <param name="item">The item to activate.</param>
 	private void Activate(TrayMenuItem item)
 	{
+		if (!item.IsEnabled)
+		{
+			return;
+		}
+
 		bool succeeded = menu.Activate(item);
 
 		if (succeeded && item is TrayToggleItem toggle)

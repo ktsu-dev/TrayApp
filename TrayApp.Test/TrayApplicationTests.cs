@@ -122,4 +122,92 @@ public class TrayApplicationTests
 		// call throws, and the lifetime's Exit handler has usually disposed it already by then.
 		Assert.AreEqual(0, stops);
 	}
+
+	[TestMethod]
+	public void TrayIconClick_WithTheToggleDisabled_DoesNotRunTheToolsSetter()
+	{
+		int setterCalls = 0;
+		bool available = false;
+
+		TrayAppDefinition app = TrayAppBuilder.Create("demo")
+			.DisplayName("Demo")
+			.Toggle("Keep awake", () => false, _ => setterCalls++, isEnabled: () => available)
+			.Build();
+
+		using TrayApplication host = Host(app, out TrayMenu menu);
+
+		// What painting the menu would have read. IsEnabled is a cache of the last refresh, so without this
+		// the item still carries its default of enabled and the assertion would pass for the wrong reason.
+		menu.Refresh();
+
+		host.OnTrayIconClicked(this, EventArgs.Empty);
+
+		// The menu shows this greyed out, so a click on the icon has to agree with it. The native menu entry
+		// is refused by the toolkit; the icon is the path with nothing in the way.
+		Assert.AreEqual(0, setterCalls);
+	}
+
+	[TestMethod]
+	public void TrayIconClick_WithTheToggleEnabled_RunsTheToolsSetter()
+	{
+		int setterCalls = 0;
+
+		TrayAppDefinition app = TrayAppBuilder.Create("demo")
+			.DisplayName("Demo")
+			.Toggle("Keep awake", () => false, _ => setterCalls++, isEnabled: () => true)
+			.Build();
+
+		using TrayApplication host = Host(app, out TrayMenu menu);
+		menu.Refresh();
+
+		host.OnTrayIconClicked(this, EventArgs.Empty);
+
+		// The fast path still has to work. Guarding it is worth nothing if it guards everything.
+		Assert.AreEqual(1, setterCalls);
+	}
+
+	[TestMethod]
+	public void TrayIconClick_BecomingEnabledAgain_RunsTheToolsSetter()
+	{
+		int setterCalls = 0;
+		bool available = false;
+
+		TrayAppDefinition app = TrayAppBuilder.Create("demo")
+			.DisplayName("Demo")
+			.Toggle("Keep awake", () => false, _ => setterCalls++, isEnabled: () => available)
+			.Build();
+
+		using TrayApplication host = Host(app, out TrayMenu menu);
+
+		menu.Refresh();
+		host.OnTrayIconClicked(this, EventArgs.Empty);
+
+		available = true;
+		menu.Refresh();
+		host.OnTrayIconClicked(this, EventArgs.Empty);
+
+		// Refused while the tool said it was unavailable, served once it said otherwise. The guard reads the
+		// refreshed state rather than latching on the first answer.
+		Assert.AreEqual(1, setterCalls);
+	}
+
+	[TestMethod]
+	public void TrayIconClick_WithNoToggleAtAll_DoesNothing()
+	{
+		int commandCalls = 0;
+
+		TrayAppDefinition app = TrayAppBuilder.Create("demo")
+			.DisplayName("Demo")
+			.Command("Two", () => commandCalls++)
+			.Build();
+
+		using TrayApplication host = Host(app, out TrayMenu menu);
+		menu.Refresh();
+
+		host.OnTrayIconClicked(this, EventArgs.Empty);
+
+		// The fast path is for toggles. A menu of commands must not have one picked for it, and quit least
+		// of all.
+		Assert.AreEqual(0, commandCalls);
+	}
 }
