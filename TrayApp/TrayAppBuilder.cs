@@ -484,7 +484,7 @@ public sealed class TrayAppBuilder
 	[SuppressMessage(
 		"Design",
 		"CA1031:Do not catch general exception types",
-		Justification = "The setter belongs to the consuming tool, so there is no exception type to filter on, and a refusal here must not stop the tray from coming up.")]
+		Justification = "The setter belongs to the consuming tool, so there is no exception type to filter on beyond the fatal ones FatalError excludes, and a refusal here must not stop the tray from coming up.")]
 	internal static string? LoadPreferences(TrayAppDefinition app, DebouncedPreferenceStore store)
 	{
 		store.LoadAsync().GetAwaiter().GetResult();
@@ -502,7 +502,7 @@ public sealed class TrayAppBuilder
 			{
 				toggle.Set(remembered);
 			}
-			catch (Exception ex)
+			catch (Exception ex) when (FatalError.IsNotFatal(ex))
 			{
 				firstError ??= ex.Message;
 				Console.Error.WriteLine($"{app.Name}: {ex.Message}");

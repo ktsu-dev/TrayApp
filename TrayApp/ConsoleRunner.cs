@@ -31,7 +31,7 @@ internal static class ConsoleRunner
 	[SuppressMessage(
 		"Design",
 		"CA1031:Do not catch general exception types",
-		Justification = "The start action belongs to the consuming tool, so there is no exception type to filter on; reporting the refusal and exiting 1 is the contract the exit codes in --help describe.")]
+		Justification = "The start action belongs to the consuming tool, so there is no exception type to filter on beyond the fatal ones FatalError excludes; reporting the refusal and exiting 1 is the contract the exit codes in --help describe.")]
 	internal static int Run(TrayAppDefinition app, CommandLineOptions options)
 	{
 		Ensure.NotNull(app);
@@ -41,7 +41,7 @@ internal static class ConsoleRunner
 		{
 			app.OnStart?.Invoke();
 		}
-		catch (Exception ex)
+		catch (Exception ex) when (FatalError.IsNotFatal(ex))
 		{
 			Console.Error.WriteLine($"{app.Name}: {ex.Message}");
 			return ExitFailure;

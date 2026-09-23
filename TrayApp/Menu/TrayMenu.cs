@@ -154,7 +154,7 @@ public sealed class TrayMenu
 	[SuppressMessage(
 		"Design",
 		"CA1031:Do not catch general exception types",
-		Justification = "The action belongs to the consuming tool, so there is no exception type to filter on, and letting one escape a tray click handler takes down a process the user asked to keep running.")]
+		Justification = "The action belongs to the consuming tool, so there is no exception type to filter on beyond the fatal ones FatalError excludes, and letting one escape a tray click handler takes down a process the user asked to keep running.")]
 	public bool Run(Action action)
 	{
 		Ensure.NotNull(action);
@@ -166,7 +166,7 @@ public sealed class TrayMenu
 			action();
 			LastError = null;
 		}
-		catch (Exception ex)
+		catch (Exception ex) when (FatalError.IsNotFatal(ex))
 		{
 			LastError = ex.Message;
 			Console.Error.WriteLine($"{displayName}: {ex.Message}");
