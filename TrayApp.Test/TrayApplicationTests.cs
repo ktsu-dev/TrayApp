@@ -192,6 +192,33 @@ public class TrayApplicationTests
 	}
 
 	[TestMethod]
+	public void Activate_WithTheItemDisabled_DoesNotRunTheToolsSetter()
+	{
+		int setterCalls = 0;
+		bool available = true;
+
+		TrayAppDefinition app = TrayAppBuilder.Create("demo")
+			.DisplayName("Demo")
+			.Toggle("Keep awake", () => false, _ => setterCalls++, isEnabled: () => available)
+			.Build();
+
+		using TrayApplication host = Host(app, out TrayMenu menu);
+
+		menu.Refresh();
+		available = false;
+		menu.Refresh();
+
+		TrayMenuItem toggle = menu.Items.First(item => item is TrayToggleItem);
+		host.Activate(toggle);
+
+		// The backstop behind the native menu. The toolkit will not raise Click for a greyed-out item, but
+		// it greys it out as of the last refresh, and a click already on its way when the tool became
+		// unavailable still arrives here. NativeMenuItem exposes Click with no way to raise it, so this
+		// calls the handler's target rather than the event.
+		Assert.AreEqual(0, setterCalls);
+	}
+
+	[TestMethod]
 	public void TrayIconClick_WithNoToggleAtAll_DoesNothing()
 	{
 		int commandCalls = 0;

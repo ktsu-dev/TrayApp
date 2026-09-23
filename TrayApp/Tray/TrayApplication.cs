@@ -216,9 +216,14 @@ internal sealed class TrayApplication : Application, IDisposable
 	/// nothing repaints a menu the user is already looking at. <see cref="TrayMenuItem.IsEnabled"/> is
 	/// the value that painting used, so this agrees with what the user saw rather than second-guessing
 	/// it.
+	/// <para>
+	/// Internal for the same reason as <see cref="OnTrayIconClicked"/>: the native <c>Click</c> that
+	/// reaches this cannot be raised from a test, since <see cref="NativeMenuItem"/> exposes the event
+	/// and no way to fire it, so the backstop is exercised by calling it.
+	/// </para>
 	/// </remarks>
 	/// <param name="item">The item to activate.</param>
-	private void Activate(TrayMenuItem item)
+	internal void Activate(TrayMenuItem item)
 	{
 		if (!item.IsEnabled)
 		{
