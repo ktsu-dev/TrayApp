@@ -383,6 +383,7 @@ public sealed class TrayAppBuilder
 
 		bool useTray = UseTray(options);
 		DebouncedPreferenceStore? store = null;
+		string? restoreError = null;
 
 		try
 		{
@@ -391,7 +392,7 @@ public sealed class TrayAppBuilder
 			if (useTray && app.Persistence is not null)
 			{
 				store = new DebouncedPreferenceStore(app.Persistence, app.PreferenceKey, app.PreferenceDebounce);
-				LoadPreferences(app, store);
+				restoreError = LoadPreferences(app, store);
 			}
 
 			if (!TryApplyOptions(options, out string optionError))
@@ -405,7 +406,7 @@ public sealed class TrayAppBuilder
 				return Task.FromResult(ExitSuccess);
 			}
 
-			int exitCode = useTray ? RunTray(app, options, store) : ConsoleRunner.Run(app, options);
+			int exitCode = useTray ? RunTray(app, options, store, restoreError) : ConsoleRunner.Run(app, options);
 
 			// FinishAsync owns the store from here: it flushes whatever the run queued and disposes it.
 			Task<int> finishing = FinishAsync(exitCode, store);
@@ -456,18 +457,39 @@ public sealed class TrayAppBuilder
 		return exitCode;
 	}
 
+	/// <summary>
+	/// Reads the remembered state and applies it to the toggles that asked to be remembered.
+	/// </summary>
+	/// <param name="app">The tool being run.</param>
+	/// <param name="store">The store to read from.</param>
+	/// <returns>The first refusal's message, for the menu's status line, or <see langword="null"/>.</returns>
 	/// <remarks>
+	/// <para>
 	/// Blocking here is deliberate. The load has to finish before the menu is built, and it has to finish on
 	/// the thread that goes on to start Avalonia - see the remarks on <see cref="RunAsync"/>. There is no
 	/// synchronization context in a console application, so there is nothing for this to deadlock against.
+	/// </para>
+	/// <para>
+	/// A setter can refuse here exactly as it can on a click - restoring "keep awake: on" asks the tool to
+	/// take an inhibitor, and the machine may have none to give. This runs before there is a menu to fail
+	/// into, so the refusal is caught, reported, and handed back for the status line. Letting it escape would
+	/// end the process before the tray appeared, which is the one thing this library exists to prevent: the
+	/// remaining toggles are still restored, and the tray still comes up saying why.
+	/// </para>
 	/// </remarks>
 	[SuppressMessage(
 		"Reliability",
 		"CA2007:Consider calling ConfigureAwait on the awaited task",
 		Justification = "Not an await; the result is taken synchronously so that the tray still starts on the process's main thread.")]
-	internal static void LoadPreferences(TrayAppDefinition app, DebouncedPreferenceStore store)
+	[SuppressMessage(
+		"Design",
+		"CA1031:Do not catch general exception types",
+		Justification = "The setter belongs to the consuming tool, so there is no exception type to filter on, and a refusal here must not stop the tray from coming up.")]
+	internal static string? LoadPreferences(TrayAppDefinition app, DebouncedPreferenceStore store)
 	{
 		store.LoadAsync().GetAwaiter().GetResult();
+
+		string? firstError = null;
 
 		foreach (TrayToggleItem toggle in app.Toggles)
 		{
@@ -476,8 +498,18 @@ public sealed class TrayAppBuilder
 				continue;
 			}
 
-			toggle.Set(remembered);
+			try
+			{
+				toggle.Set(remembered);
+			}
+			catch (Exception ex)
+			{
+				firstError ??= ex.Message;
+				Console.Error.WriteLine($"{app.Name}: {ex.Message}");
+			}
 		}
+
+		return firstError;
 	}
 
 	/// <remarks>
@@ -507,9 +539,15 @@ public sealed class TrayAppBuilder
 		"Design",
 		"CA1031:Do not catch general exception types",
 		Justification = "Any failure to bring up a tray icon is recoverable by falling back to the console, and the windowing backends do not report those failures through a common exception type.")]
-	private static int RunTray(TrayAppDefinition app, CommandLineOptions options, DebouncedPreferenceStore? store)
+	private static int RunTray(
+		TrayAppDefinition app,
+		CommandLineOptions options,
+		DebouncedPreferenceStore? store,
+		string? restoreError)
 	{
 		TrayMenu menu = new(app.DisplayName, app.Status, app.Items);
+		menu.SeedError(restoreError);
+
 		TrayApplication? host = null;
 
 		void Remember(TrayToggleItem toggle)

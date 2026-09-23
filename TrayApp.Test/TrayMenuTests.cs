@@ -123,6 +123,23 @@ public class TrayMenuTests
 	}
 
 	[TestMethod]
+	public void SeedError_ShowsInTheStatusLineAndClearsOnTheNextSuccess()
+	{
+		TrayMenu menu = BuildMenu(() => "idle");
+
+		// A refusal while restoring a remembered toggle happens before the menu exists, so the host seeds it.
+		menu.SeedError("no inhibitor here");
+		menu.Refresh();
+
+		Assert.AreEqual("no inhibitor here", menu.LastError);
+		Assert.AreEqual("Demo failed: no inhibitor here", menu.StatusItem!.Header);
+
+		Assert.IsTrue(menu.Run(() => { }));
+		Assert.IsNull(menu.LastError);
+		Assert.AreEqual("idle", menu.StatusItem.Header);
+	}
+
+	[TestMethod]
 	public void Activate_OnTheQuitItem_RaisesQuitRequested()
 	{
 		TrayMenu menu = BuildMenu(status: null);

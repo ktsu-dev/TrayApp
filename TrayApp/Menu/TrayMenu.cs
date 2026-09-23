@@ -87,6 +87,16 @@ public sealed class TrayMenu
 	public string? LastError { get; private set; }
 
 	/// <summary>
+	/// Records a failure that happened before the menu existed.
+	/// </summary>
+	/// <param name="message">The message, or <see langword="null"/> to clear it.</param>
+	/// <remarks>
+	/// Restoring a remembered toggle runs the tool's setter before there is a menu to fail into, and the
+	/// next successful action clears this the same way it clears a failed click.
+	/// </remarks>
+	internal void SeedError(string? message) => LastError = message;
+
+	/// <summary>
 	/// Re-reads every item's state from the tool.
 	/// </summary>
 	public void Refresh()
