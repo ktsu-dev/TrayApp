@@ -1,7 +1,7 @@
-## v1.1.1 (patch)
+## v1.1.2 (patch)
 
-Changes since v1.1.0:
+Changes since v1.1.1:
 
-- Bump Avalonia, Avalonia.Desktop and Avalonia.Native ([@dependabot[bot]](https://github.com/dependabot[bot]))
-- Bump the ktsu group with 9 updates ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Never absorb a fatal exception from the tool's own code ([@matt-edmondson](https://github.com/matt-edmondson))
+- [patch] Do not let a refused preference restore kill the tray ([@matt-edmondson](https://github.com/matt-edmondson))
 
