@@ -87,6 +87,16 @@ public sealed class TrayMenu
 	public string? LastError { get; private set; }
 
 	/// <summary>
+	/// Records a failure that happened before the menu existed.
+	/// </summary>
+	/// <param name="message">The message, or <see langword="null"/> to clear it.</param>
+	/// <remarks>
+	/// Restoring a remembered toggle runs the tool's setter before there is a menu to fail into, and the
+	/// next successful action clears this the same way it clears a failed click.
+	/// </remarks>
+	internal void SeedError(string? message) => LastError = message;
+
+	/// <summary>
 	/// Re-reads every item's state from the tool.
 	/// </summary>
 	public void Refresh()
@@ -144,7 +154,7 @@ public sealed class TrayMenu
 	[SuppressMessage(
 		"Design",
 		"CA1031:Do not catch general exception types",
-		Justification = "The action belongs to the consuming tool, so there is no exception type to filter on, and letting one escape a tray click handler takes down a process the user asked to keep running.")]
+		Justification = "The action belongs to the consuming tool, so there is no exception type to filter on beyond the fatal ones FatalError excludes, and letting one escape a tray click handler takes down a process the user asked to keep running.")]
 	public bool Run(Action action)
 	{
 		Ensure.NotNull(action);
@@ -156,7 +166,7 @@ public sealed class TrayMenu
 			action();
 			LastError = null;
 		}
-		catch (Exception ex)
+		catch (Exception ex) when (FatalError.IsNotFatal(ex))
 		{
 			LastError = ex.Message;
 			Console.Error.WriteLine($"{displayName}: {ex.Message}");

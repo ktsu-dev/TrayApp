@@ -109,7 +109,7 @@ public class TrayAppBuilderTests
 			.Build();
 
 		using DebouncedPreferenceStore store = new(provider, "tray", Debounce);
-		TrayAppBuilder.LoadPreferences(app, store);
+		_ = TrayAppBuilder.LoadPreferences(app, store);
 
 		Assert.IsTrue(remembered);
 		Assert.IsFalse(forgotten);
@@ -137,7 +137,7 @@ public class TrayAppBuilderTests
 		TrayAppDefinition app = builder.Build();
 
 		using DebouncedPreferenceStore store = new(provider, "tray", Debounce);
-		TrayAppBuilder.LoadPreferences(app, store);
+		_ = TrayAppBuilder.LoadPreferences(app, store);
 		Assert.IsTrue(running, "the remembered value should be restored first");
 
 		Assert.IsTrue(CommandLineParser.TryParse(["--off"], app.Options, out CommandLineOptions options, out _));
@@ -145,6 +145,65 @@ public class TrayAppBuilderTests
 
 		// What was typed this time beats what the tray was left set to last time.
 		Assert.IsFalse(running);
+	}
+
+	[TestMethod]
+	public async Task LoadPreferences_WhenTheToolRefuses_KeepsGoingAndHandsBackTheMessage()
+	{
+		InMemoryPersistenceProvider<string> provider = new();
+
+		using (DebouncedPreferenceStore seed = new(provider, "tray", Debounce))
+		{
+			await seed.LoadAsync().ConfigureAwait(false);
+			seed.Set("awake", true);
+			seed.Set("display", true);
+			await seed.FlushAsync().ConfigureAwait(false);
+		}
+
+		bool display = false;
+
+		TrayAppDefinition app = TrayAppBuilder.Create("demo")
+			.Toggle("Keep awake", () => false, _ => throw new InvalidOperationException("no inhibitor here"), persistAs: "awake")
+			.Toggle("Keep display awake", () => display, value => display = value, persistAs: "display")
+			.Preferences(provider)
+			.Build();
+
+		using DebouncedPreferenceStore store = new(provider, "tray", Debounce);
+
+		// Restoring "on" asks the tool to take an inhibitor, and the machine may have none to give. That
+		// refusal happens before there is a menu to fail into; letting it escape would end the process
+		// before the tray appeared.
+		string? error = TrayAppBuilder.LoadPreferences(app, store);
+
+		Assert.AreEqual("no inhibitor here", error);
+
+		// The toggle after the one that refused is still restored.
+		Assert.IsTrue(display);
+	}
+
+	[TestMethod]
+	public async Task LoadPreferences_WhenNothingRefuses_HandsBackNoMessage()
+	{
+		InMemoryPersistenceProvider<string> provider = new();
+
+		using (DebouncedPreferenceStore seed = new(provider, "tray", Debounce))
+		{
+			await seed.LoadAsync().ConfigureAwait(false);
+			seed.Set("awake", true);
+			await seed.FlushAsync().ConfigureAwait(false);
+		}
+
+		bool awake = false;
+
+		TrayAppDefinition app = TrayAppBuilder.Create("demo")
+			.Toggle("Keep awake", () => awake, value => awake = value, persistAs: "awake")
+			.Preferences(provider)
+			.Build();
+
+		using DebouncedPreferenceStore store = new(provider, "tray", Debounce);
+
+		Assert.IsNull(TrayAppBuilder.LoadPreferences(app, store));
+		Assert.IsTrue(awake);
 	}
 
 	[TestMethod]
