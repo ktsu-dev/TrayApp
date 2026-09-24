@@ -1,7 +1,6 @@
-## v1.1.4 (patch)
+## v1.1.5 (patch)
 
-Changes since v1.1.3:
+Changes since v1.1.4:
 
-- test: cover the disabled-item backstop in Activate [patch] ([@Claude](https://github.com/Claude))
-- fix: do not activate a disabled toggle from a tray icon click [patch] ([@Claude](https://github.com/Claude))
+- Bump the ktsu group with 5 updates ([@dependabot[bot]](https://github.com/dependabot[bot]))
 
