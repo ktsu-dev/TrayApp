@@ -69,4 +69,31 @@ public class DurationParserTests
 		Assert.IsFalse(DurationParser.TryParse(text, out TimeSpan duration));
 		Assert.AreEqual(TimeSpan.Zero, duration);
 	}
+
+	[TestMethod]
+	public void TryParse_AtTheLongestWaitATimerTakes_ReturnsTheDuration()
+	{
+		Assert.IsTrue(DurationParser.TryParse("24d", out TimeSpan duration));
+		Assert.AreEqual(TimeSpan.FromDays(24), duration);
+		Assert.IsTrue(duration <= DurationParser.MaxDuration);
+	}
+
+	[TestMethod]
+	[DataRow("25d")]
+	[DataRow("24d21h")]
+	public void TryParse_LongerThanATimerCanWait_ReturnsFalse(string text)
+	{
+		// ManualResetEventSlim.Wait and the tray's timer both throw past int.MaxValue milliseconds, about
+		// 24.8 days, so a longer duration would start the tool and then crash it.
+		Assert.IsFalse(DurationParser.TryParse(text, out TimeSpan duration));
+		Assert.AreEqual(TimeSpan.Zero, duration);
+	}
+
+	[TestMethod]
+	public void MaxDuration_IsTheLongestTimeoutAWaitTakes()
+	{
+		using System.Threading.ManualResetEventSlim signal = new(initialState: true);
+		Assert.IsTrue(signal.Wait(DurationParser.MaxDuration));
+		_ = Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => signal.Wait(DurationParser.MaxDuration + TimeSpan.FromMilliseconds(1)));
+	}
 }

@@ -68,6 +68,13 @@ public class CommandLineParserTests
 	}
 
 	[TestMethod]
+	public void TryParse_WithADurationLongerThanATimerCanWait_FailsWithAUsageError()
+	{
+		Assert.IsFalse(CommandLineParser.TryParse(["--for", "25d"], NoOptions, out _, out string error));
+		Assert.Contains("--for can be at most 24 days", error, StringComparison.Ordinal);
+	}
+
+	[TestMethod]
 	public void TryParse_WithADurationAndNoValue_Fails()
 	{
 		Assert.IsFalse(CommandLineParser.TryParse(["--for"], NoOptions, out _, out string error));
