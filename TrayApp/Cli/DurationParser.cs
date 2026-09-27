@@ -17,12 +17,43 @@ using System.Globalization;
 public static class DurationParser
 {
 	/// <summary>
+	/// The longest duration <see cref="TryParse(string?, out TimeSpan)"/> accepts: <see cref="int.MaxValue"/>
+	/// milliseconds, a little under 24 days and 21 hours.
+	/// </summary>
+	/// <remarks>
+	/// That is the longest timeout a wait handle or a timer takes. Anything longer parses cleanly and then
+	/// throws <see cref="ArgumentOutOfRangeException"/> from the wait that enforces it, after the tool has
+	/// already started.
+	/// </remarks>
+	public static readonly TimeSpan MaxDuration = TimeSpan.FromMilliseconds(int.MaxValue);
+
+	/// <summary>
 	/// Parses a duration such as <c>45s</c>, <c>90m</c>, <c>2h</c>, <c>1h30m</c>, or a bare <c>90</c> for minutes.
 	/// </summary>
 	/// <param name="text">The text to read.</param>
 	/// <param name="duration">Receives the duration when parsing succeeds.</param>
-	/// <returns><see langword="true"/> when <paramref name="text"/> is a positive duration.</returns>
+	/// <returns>
+	/// <see langword="true"/> when <paramref name="text"/> is a positive duration no longer than <see cref="MaxDuration"/>.
+	/// </returns>
 	public static bool TryParse(string? text, out TimeSpan duration)
+	{
+		if (!TryParseAnyLength(text, out duration) || duration > MaxDuration)
+		{
+			duration = TimeSpan.Zero;
+			return false;
+		}
+
+		return true;
+	}
+
+	/// <summary>
+	/// Parses a duration as <see cref="TryParse(string?, out TimeSpan)"/> does, without the upper bound, so a
+	/// caller can tell a value that is too long apart from one that is not a duration at all.
+	/// </summary>
+	/// <param name="text">The text to read.</param>
+	/// <param name="duration">Receives the duration when parsing succeeds.</param>
+	/// <returns><see langword="true"/> when <paramref name="text"/> is a positive duration.</returns>
+	internal static bool TryParseAnyLength(string? text, out TimeSpan duration)
 	{
 		duration = TimeSpan.Zero;
 

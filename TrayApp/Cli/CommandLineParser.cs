@@ -127,9 +127,15 @@ public static class CommandLineParser
 			return ReadResult.Failed;
 		}
 
-		if (!DurationParser.TryParse(text, out TimeSpan duration))
+		if (!DurationParser.TryParseAnyLength(text, out TimeSpan duration))
 		{
 			error = $"'{text}' is not a duration. Try 45s, 90m, 2h, or 1h30m.";
+			return ReadResult.Failed;
+		}
+
+		if (duration > DurationParser.MaxDuration)
+		{
+			error = $"'{text}' is too long: {argument} can be at most 24 days.";
 			return ReadResult.Failed;
 		}
 
