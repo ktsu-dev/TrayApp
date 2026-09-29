@@ -5,6 +5,7 @@ namespace ktsu.TrayApp.Test;
 using System.Linq;
 using Avalonia.Controls;
 using ktsu.TrayApp;
+using ktsu.TrayApp.Cli;
 using ktsu.TrayApp.Menu;
 using ktsu.TrayApp.Tray;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -236,5 +237,195 @@ public class TrayApplicationTests
 		// The fast path is for toggles. A menu of commands must not have one picked for it, and quit least
 		// of all.
 		Assert.AreEqual(0, commandCalls);
+	}
+
+	[TestMethod]
+	public void StartTool_WhenTheStartActionSucceeds_KeepsTheSeededRestoreError()
+	{
+		TrayAppDefinition app = TrayAppBuilder.Create("demo")
+			.DisplayName("Demo")
+			.Status(() => "idle")
+			.Toggle("One", () => false, _ => { })
+			.OnStart(() => { })
+			.Build();
+
+		using TrayApplication host = Host(app, out TrayMenu menu);
+		menu.SeedError("no inhibitor");
+
+		host.StartTool();
+
+		// The remembered setting was not applied, and a successful start does not change that. Clearing the
+		// message here would put a healthy status line in front of the user before the menu is ever painted.
+		Assert.AreEqual("no inhibitor", menu.LastError);
+		Assert.AreEqual("Demo failed: no inhibitor", menu.StatusItem!.Header);
+	}
+
+	[TestMethod]
+	public void StartTool_WhenTheStartActionFails_ReportsItsOwnError()
+	{
+		TrayAppDefinition app = TrayAppBuilder.Create("demo")
+			.DisplayName("Demo")
+			.Status(() => "idle")
+			.Toggle("One", () => false, _ => { })
+			.OnStart(() => throw new InvalidOperationException("device busy"))
+			.Build();
+
+		using TrayApplication host = Host(app, out TrayMenu menu);
+		menu.SeedError("no inhibitor");
+
+		host.StartTool();
+
+		// The start refusal is the newer and more pressing failure, so it wins the one status line.
+		Assert.AreEqual("device busy", menu.LastError);
+	}
+
+	[TestMethod]
+	public void Dispose_AfterTheToolStartedButBeforeTheTrayFinishedStarting_StopsTheTool()
+	{
+		int stops = 0;
+
+		TrayAppDefinition app = TrayAppBuilder.Create("demo")
+			.DisplayName("Demo")
+			.Toggle("One", () => false, _ => { })
+			.OnStart(() => { })
+			.OnStop(() => stops++)
+			.Build();
+
+		TrayApplication host = Host(app, out _);
+		host.StartTool();
+		host.Dispose();
+
+		// Whatever threw between the start action and the end of start-up, the tool is holding what it took,
+		// and nothing else will release it.
+		Assert.IsFalse(host.HasStarted);
+		Assert.AreEqual(1, stops);
+	}
+
+	[TestMethod]
+	public void RecoverFromTrayFailure_AfterTheToolStarted_DoesNotStartItAgain()
+	{
+		int starts = 0;
+		int stops = 0;
+
+		TrayAppDefinition app = TrayAppBuilder.Create("demo")
+			.DisplayName("Demo")
+			.Toggle("One", () => false, _ => { })
+			.OnStart(() => starts++)
+			.OnStop(() => stops++)
+			.Build();
+
+		using TrayApplication host = Host(app, out _);
+		host.StartTool();
+
+		// What a missing icon resource or a throwing status getter looks like from RunTray: start-up threw
+		// after the start action had run, so HasStarted is still false.
+		int exitCode = TrayAppBuilder.RecoverFromTrayFailure(
+			app,
+			new CommandLineOptions { Duration = TimeSpan.Zero },
+			host,
+			new InvalidOperationException("The tray icon 'nope-idle.png' is missing"));
+
+		Assert.AreEqual(1, starts);
+		Assert.AreEqual(1, stops);
+		Assert.AreEqual(1, exitCode);
+	}
+
+	[TestMethod]
+	public void RecoverFromTrayFailure_BeforeTheToolStarted_FallsBackToTheConsole()
+	{
+		int starts = 0;
+		int stops = 0;
+
+		TrayAppDefinition app = TrayAppBuilder.Create("demo")
+			.DisplayName("Demo")
+			.Toggle("One", () => false, _ => { })
+			.OnStart(() => starts++)
+			.OnStop(() => stops++)
+			.Build();
+
+		using TrayApplication host = Host(app, out _);
+
+		int exitCode = TrayAppBuilder.RecoverFromTrayFailure(
+			app,
+			new CommandLineOptions { Duration = TimeSpan.Zero },
+			host,
+			new InvalidOperationException("XOpenDisplay failed"));
+
+		// The windowing stack refused before anything was started, so the terminal run is the only start.
+		Assert.AreEqual(1, starts);
+		Assert.AreEqual(1, stops);
+		Assert.AreEqual(0, exitCode);
+	}
+
+	[TestMethod]
+	public void StartTool_WithNoStartAction_KeepsTheSeededErrorAndRecordsTheStart()
+	{
+		using TrayApplication host = Host(Definition(), out TrayMenu menu);
+		menu.SeedError("no inhibitor");
+
+		host.StartTool();
+
+		// There is no start action to succeed, so nothing clears the restore error; the tool still counts as
+		// started, so a later failure stops it rather than starting it again in the terminal.
+		Assert.IsTrue(host.ToolStarted);
+		Assert.AreEqual("no inhibitor", menu.LastError);
+	}
+
+	[TestMethod]
+	public void RecoverFromTrayFailure_WithNoHost_FallsBackToTheConsole()
+	{
+		int starts = 0;
+
+		TrayAppDefinition app = TrayAppBuilder.Create("demo")
+			.DisplayName("Demo")
+			.Toggle("One", () => false, _ => { })
+			.OnStart(() => starts++)
+			.Build();
+
+		// Avalonia can refuse before it ever asks for the application, leaving no host to dispose.
+		int exitCode = TrayAppBuilder.RecoverFromTrayFailure(
+			app,
+			new CommandLineOptions { Duration = TimeSpan.Zero },
+			host: null,
+			new InvalidOperationException("XOpenDisplay failed"));
+
+		Assert.AreEqual(1, starts);
+		Assert.AreEqual(0, exitCode);
+	}
+
+	[TestMethod]
+	public void RecoverFromTrayFailure_WithDebugOutputOn_StillStopsTheToolOnce()
+	{
+		int stops = 0;
+
+		TrayAppDefinition app = TrayAppBuilder.Create("demo")
+			.DisplayName("Demo")
+			.Toggle("One", () => false, _ => { })
+			.OnStop(() => stops++)
+			.Build();
+
+		using TrayApplication host = Host(app, out _);
+		host.StartTool();
+
+		string? previous = Environment.GetEnvironmentVariable("TRAYAPP_DEBUG");
+
+		try
+		{
+			Environment.SetEnvironmentVariable("TRAYAPP_DEBUG", "1");
+
+			int exitCode = TrayAppBuilder.RecoverFromTrayFailure(
+				app,
+				new CommandLineOptions { Duration = TimeSpan.Zero },
+				host,
+				new InvalidOperationException("status getter threw"));
+
+			// Printing the full exception is diagnostic only; it must not change what the run ends as.
+			Assert.AreEqual(1, exitCode);
+			Assert.AreEqual(1, stops);
+		}
+		finally
+		{
+			Environment.SetEnvironmentVariable("TRAYAPP_DEBUG", previous);
+		}
 	}
 }

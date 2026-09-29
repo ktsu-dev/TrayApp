@@ -81,6 +81,16 @@ internal sealed class TrayApplication : Application, IDisposable
 	/// </remarks>
 	internal bool HasStarted { get; private set; }
 
+	/// <summary>
+	/// Gets a value indicating whether the tool's start action has run.
+	/// </summary>
+	/// <remarks>
+	/// Set before <see cref="HasStarted"/>, and not the same thing: start-up can still throw after the start
+	/// action - a status getter, a subscription, a missing icon resource - and by then the tool is holding
+	/// whatever it took. <see cref="Dispose"/> stops it on this, and the caller must not start it again.
+	/// </remarks>
+	internal bool ToolStarted { get; private set; }
+
 	/// <inheritdoc/>
 	public override void Initialize() => Name = app.DisplayName;
 
@@ -102,10 +112,7 @@ internal sealed class TrayApplication : Application, IDisposable
 		// Started here rather than before the run so that a tool whose start action throws still gets a tray
 		// icon, with the refusal in its status line, instead of a process that exits before the user sees
 		// anything. Run() puts the message where RefreshMenu will pick it up.
-		if (app.OnStart is not null)
-		{
-			menu.Run(app.OnStart);
-		}
+		StartTool();
 
 		// The tool's own state can change with nobody having clicked anything - a timer expiring, a device
 		// going away - and the menu only ever reads through getters, so all it needs is a nudge.
@@ -125,6 +132,34 @@ internal sealed class TrayApplication : Application, IDisposable
 	}
 
 	/// <summary>
+	/// Runs the tool's start action, putting a refusal in the status line.
+	/// </summary>
+	/// <remarks>
+	/// Internal so that the start sequence can be driven without a platform: everything here reads and
+	/// writes menu state, and none of it needs the tray icon.
+	/// </remarks>
+	internal void StartTool()
+	{
+		ToolStarted = true;
+
+		if (app.OnStart is null)
+		{
+			return;
+		}
+
+		// A failed preference restore was seeded before the menu existed, and a successful start does not
+		// make the remembered setting any more applied. Run() clears the error on success, so put it back;
+		// a failed start reports its own error instead, which is the more pressing of the two.
+		string? seeded = menu.LastError;
+
+		if (menu.Run(app.OnStart) && seeded is not null)
+		{
+			menu.SeedError(seeded);
+			menu.Refresh();
+		}
+	}
+
+	/// <summary>
 	/// Stops the tray icon and runs the tool's stop action.
 	/// </summary>
 	public void Dispose()
@@ -139,7 +174,7 @@ internal sealed class TrayApplication : Application, IDisposable
 		expiryTimer?.Stop();
 		menu.QuitRequested -= OnQuitRequested;
 
-		if (HasStarted)
+		if (ToolStarted)
 		{
 			app.OnStop?.Invoke();
 		}

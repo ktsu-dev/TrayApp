@@ -43,6 +43,7 @@ using ktsu.TrayApp.Tray;
 public sealed class TrayAppBuilder
 {
 	private const int ExitSuccess = 0;
+	private const int ExitFailure = 1;
 	private const int ExitUsage = 2;
 
 	/// <summary>Set to <c>1</c> to print the full exception behind a tray failure.</summary>
@@ -568,30 +569,57 @@ public sealed class TrayAppBuilder
 		}
 		catch (Exception ex)
 		{
-			if (Environment.GetEnvironmentVariable(DebugEnvironmentVariable) == "1")
-			{
-				Console.Error.WriteLine(ex.ToString());
-			}
-
-			// The tray already ran and quit; this is Avalonia's teardown throwing after the fact (see
-			// TrayApplication.HasStarted). Restarting in the terminal here would leave a tool the user just
-			// quit still holding whatever it holds.
-			if (host?.HasStarted == true)
-			{
-				host.Dispose();
-				return ExitSuccess;
-			}
-
-			// Otherwise the windowing stack refused after the session check passed - a DISPLAY pointing at
-			// nothing, a missing libX11, no status-notifier host on the bus - and it reports those as plain
-			// exceptions of whatever type the backend felt like (X11 throws Exception("XOpenDisplay failed")).
-			// There is no useful list to filter on, and every one of them means the same thing here: no tray,
-			// so use the terminal. Letting it escape instead would kill a process the user asked to keep
-			// running.
-			host?.Dispose();
-			Console.Error.WriteLine($"{app.Name}: could not show a tray icon ({ex.Message}). Staying in the terminal instead.");
-			return ConsoleRunner.Run(app, options);
+			return RecoverFromTrayFailure(app, options, host, ex);
 		}
+	}
+
+	/// <summary>
+	/// Decides what a tray run that threw ends as.
+	/// </summary>
+	/// <param name="app">The tool being run.</param>
+	/// <param name="options">The options the run was started with.</param>
+	/// <param name="host">The tray host, or <see langword="null"/> if Avalonia never constructed it.</param>
+	/// <param name="ex">What the run threw.</param>
+	/// <returns>The process exit code.</returns>
+	internal static int RecoverFromTrayFailure(
+		TrayAppDefinition app,
+		CommandLineOptions options,
+		TrayApplication? host,
+		Exception ex)
+	{
+		if (Environment.GetEnvironmentVariable(DebugEnvironmentVariable) == "1")
+		{
+			Console.Error.WriteLine(ex.ToString());
+		}
+
+		// The tray already ran and quit; this is Avalonia's teardown throwing after the fact (see
+		// TrayApplication.HasStarted). Restarting in the terminal here would leave a tool the user just
+		// quit still holding whatever it holds.
+		if (host?.HasStarted == true)
+		{
+			host.Dispose();
+			return ExitSuccess;
+		}
+
+		// The icon came up and the tool was started, then something later in start-up threw - a status
+		// getter, a subscription, a missing icon resource. Disposing stops the tool; falling back to the
+		// terminal would start it a second time, and say the icon could not be shown when it was.
+		if (host?.ToolStarted == true)
+		{
+			host.Dispose();
+			Console.Error.WriteLine($"{app.Name}: the tray failed after starting ({ex.Message}).");
+			return ExitFailure;
+		}
+
+		// Otherwise the windowing stack refused after the session check passed - a DISPLAY pointing at
+		// nothing, a missing libX11, no status-notifier host on the bus - and it reports those as plain
+		// exceptions of whatever type the backend felt like (X11 throws Exception("XOpenDisplay failed")).
+		// There is no useful list to filter on, and every one of them means the same thing here: no tray,
+		// so use the terminal. Letting it escape instead would kill a process the user asked to keep
+		// running.
+		host?.Dispose();
+		Console.Error.WriteLine($"{app.Name}: could not show a tray icon ({ex.Message}). Staying in the terminal instead.");
+		return ConsoleRunner.Run(app, options);
 	}
 
 	/// <summary>
