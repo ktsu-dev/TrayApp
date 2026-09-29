@@ -356,4 +356,76 @@ public class TrayApplicationTests
 		Assert.AreEqual(1, stops);
 		Assert.AreEqual(0, exitCode);
 	}
+
+	[TestMethod]
+	public void StartTool_WithNoStartAction_KeepsTheSeededErrorAndRecordsTheStart()
+	{
+		using TrayApplication host = Host(Definition(), out TrayMenu menu);
+		menu.SeedError("no inhibitor");
+
+		host.StartTool();
+
+		// There is no start action to succeed, so nothing clears the restore error; the tool still counts as
+		// started, so a later failure stops it rather than starting it again in the terminal.
+		Assert.IsTrue(host.ToolStarted);
+		Assert.AreEqual("no inhibitor", menu.LastError);
+	}
+
+	[TestMethod]
+	public void RecoverFromTrayFailure_WithNoHost_FallsBackToTheConsole()
+	{
+		int starts = 0;
+
+		TrayAppDefinition app = TrayAppBuilder.Create("demo")
+			.DisplayName("Demo")
+			.Toggle("One", () => false, _ => { })
+			.OnStart(() => starts++)
+			.Build();
+
+		// Avalonia can refuse before it ever asks for the application, leaving no host to dispose.
+		int exitCode = TrayAppBuilder.RecoverFromTrayFailure(
+			app,
+			new CommandLineOptions { Duration = TimeSpan.Zero },
+			host: null,
+			new InvalidOperationException("XOpenDisplay failed"));
+
+		Assert.AreEqual(1, starts);
+		Assert.AreEqual(0, exitCode);
+	}
+
+	[TestMethod]
+	public void RecoverFromTrayFailure_WithDebugOutputOn_StillStopsTheToolOnce()
+	{
+		int stops = 0;
+
+		TrayAppDefinition app = TrayAppBuilder.Create("demo")
+			.DisplayName("Demo")
+			.Toggle("One", () => false, _ => { })
+			.OnStop(() => stops++)
+			.Build();
+
+		using TrayApplication host = Host(app, out _);
+		host.StartTool();
+
+		string? previous = Environment.GetEnvironmentVariable("TRAYAPP_DEBUG");
+
+		try
+		{
+			Environment.SetEnvironmentVariable("TRAYAPP_DEBUG", "1");
+
+			int exitCode = TrayAppBuilder.RecoverFromTrayFailure(
+				app,
+				new CommandLineOptions { Duration = TimeSpan.Zero },
+				host,
+				new InvalidOperationException("status getter threw"));
+
+			// Printing the full exception is diagnostic only; it must not change what the run ends as.
+			Assert.AreEqual(1, exitCode);
+			Assert.AreEqual(1, stops);
+		}
+		finally
+		{
+			Environment.SetEnvironmentVariable("TRAYAPP_DEBUG", previous);
+		}
+	}
 }
