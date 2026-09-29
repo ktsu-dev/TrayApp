@@ -238,6 +238,8 @@ These are the parts that look like they could be simplified away and cannot.
 | Behaviour | What breaks without it |
 |-----------|------------------------|
 | Catching **all** exceptions out of the Avalonia run call, and using `HasStarted` to tell "the tray ran and quit" from "the tray never came up" | Avalonia's `DBusTrayIconImpl.WatchAsync` is `async void` with an exception filter that stops applying once the icon is disposed, so an ordinary Linux shutdown throws `TaskCanceledException` *after* the tray has done its job. Without the flag, a clean quit restarts in the console. |
+| Tracking `ToolStarted` separately from `HasStarted`, and never falling back to the console once it is set | Start-up can still throw after the start action has run (a status getter, a missing icon resource). Falling back then starts the tool a second time and never stops the first start. |
+| Re-seeding a failed preference restore after a successful start action | `TrayMenu.Run` clears `LastError` on success, so the restore failure would be wiped before the menu was ever painted. |
 | Falling back to the console when the windowing stack refuses after `DesktopSession` said yes | A `DISPLAY` pointing at nothing, a missing libX11, or no status-notifier host kills a process someone started to hold a resource. |
 | Constructing menu items eagerly and the `TrayIcon` lazily | `TrayIcon`'s constructor reaches for a platform handle that does not exist until Avalonia has started. |
 | Keeping a failed action's message in a field rather than writing it into the menu item | The refresh that runs immediately after every action overwrites anything written directly. |
