@@ -252,6 +252,43 @@ public class TrayAppBuilderTests
 	}
 
 	[TestMethod]
+	public async Task RunAsync_WithStatusAndARememberedToggle_RunsNoSetterAndReportsTheLiveState()
+	{
+		InMemoryPersistenceProvider<string> provider = new();
+
+		using (DebouncedPreferenceStore seed = new(provider, "tray", Debounce))
+		{
+			await seed.LoadAsync().ConfigureAwait(false);
+			seed.Set("awake", true);
+			await seed.FlushAsync().ConfigureAwait(false);
+		}
+
+		bool awake = false;
+		int setterCalls = 0;
+		bool? awakeWhenReported = null;
+
+		int exitCode = await TrayAppBuilder.Create("demo")
+			.Toggle("Keep awake", () => awake, value =>
+			{
+				setterCalls++;
+				awake = value;
+			}, persistAs: "awake")
+			.Status(() =>
+			{
+				awakeWhenReported = awake;
+				return awake ? "Keeping awake" : "Idle";
+			})
+			.Preferences(provider)
+			.RunAsync(["--tray", "--status"])
+			.ConfigureAwait(false);
+
+		// A status query must not take what the toggle guards: it exits without OnStop to give it back.
+		Assert.AreEqual(0, exitCode);
+		Assert.AreEqual(0, setterCalls);
+		Assert.IsFalse(awakeWhenReported);
+	}
+
+	[TestMethod]
 	public void Menu_BuiltFromADefinition_CarriesTheToolsItems()
 	{
 		TrayAppDefinition app = TrayAppBuilder.Create("demo")

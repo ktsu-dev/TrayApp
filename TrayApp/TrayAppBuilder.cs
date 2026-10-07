@@ -390,7 +390,9 @@ public sealed class TrayAppBuilder
 		{
 			// Preferences are the tray's: a command line run says what it wants, so letting a remembered
 			// setting override an argument would be surprising, and the console path never reads them.
-			if (useTray && app.Persistence is not null)
+			// --status is a read-only report, so it restores nothing: a restore runs toggle setters that can
+			// take a resource, and the report returns without the OnStop that would release it.
+			if (useTray && !options.ShowStatus && app.Persistence is not null)
 			{
 				store = new DebouncedPreferenceStore(app.Persistence, app.PreferenceKey, app.PreferenceDebounce);
 				restoreError = LoadPreferences(app, store);
