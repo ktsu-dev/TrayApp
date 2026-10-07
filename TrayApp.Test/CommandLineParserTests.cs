@@ -137,6 +137,32 @@ public class CommandLineParserTests
 	}
 
 	[TestMethod]
+	public void TryParse_WithAFlagGivenUnderSeveralAliases_RunsItsHandlerOnce()
+	{
+		int calls = 0;
+		AppOption display = AppOption.Flag(["-d", "--display"], "Keep the display lit.", () => calls++);
+
+		Assert.IsTrue(CommandLineParser.TryParse(["-d", "--display", "-d"], [display], out CommandLineOptions options, out _));
+		Assert.IsTrue(TrayAppBuilder.TryApplyOptions(options, out _));
+
+		// A handler that toggles would otherwise be flipped back by the second spelling.
+		Assert.AreEqual(1, calls);
+		Assert.AreEqual(1, options.Matches.Count);
+	}
+
+	[TestMethod]
+	public void TryParse_WithAValueOptionGivenTwice_AppliesBothInOrder()
+	{
+		List<string> seen = [];
+		AppOption reason = AppOption.Value(["-r", "--reason"], "text", "Why.", seen.Add);
+
+		Assert.IsTrue(CommandLineParser.TryParse(["-r", "first", "--reason", "second"], [reason], out CommandLineOptions options, out _));
+		Assert.IsTrue(TrayAppBuilder.TryApplyOptions(options, out _));
+
+		CollectionAssert.AreEqual(new[] { "first", "second" }, seen);
+	}
+
+	[TestMethod]
 	public void TryParse_WithAnApplicationValueOption_TakesTheNextArgument()
 	{
 		string? captured = null;
