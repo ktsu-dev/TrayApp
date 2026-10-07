@@ -80,8 +80,10 @@ public sealed class AppOption
 	/// <param name="valueName">The placeholder shown in <c>--help</c>, such as <c>text</c>.</param>
 	/// <param name="description">The one-line description shown in <c>--help</c>.</param>
 	/// <param name="onValue">
-	/// Called with the value. Throw <see cref="FormatException"/> or <see cref="ArgumentException"/> from
-	/// here to reject a value: the message becomes the usage error, and the tool exits 2 without starting.
+	/// Called with the value, once for each time the option was given and in the order given, so the last
+	/// one wins for a handler that stores it. Throw <see cref="FormatException"/> or
+	/// <see cref="ArgumentException"/> from here to reject a value: the message becomes the usage error, and
+	/// the tool exits 2 without starting.
 	/// </param>
 	/// <returns>The option.</returns>
 	/// <exception cref="ArgumentNullException">Any argument is <see langword="null"/>.</exception>

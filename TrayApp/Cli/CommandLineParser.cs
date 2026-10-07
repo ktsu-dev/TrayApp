@@ -168,7 +168,13 @@ public static class CommandLineParser
 			return false;
 		}
 
-		state.Matches.Add(new AppOptionMatch(matched, value));
+		// A switch runs its handler once however many times it was given, under whichever aliases, so a
+		// handler that toggles is not undone by "-d --display". A value option keeps every occurrence.
+		if (matched.TakesValue || !state.Matches.Exists(match => ReferenceEquals(match.Option, matched)))
+		{
+			state.Matches.Add(new AppOptionMatch(matched, value));
+		}
+
 		error = string.Empty;
 		return true;
 	}

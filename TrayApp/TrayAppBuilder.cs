@@ -244,7 +244,7 @@ public sealed class TrayAppBuilder
 	/// </summary>
 	/// <param name="aliases">The spellings that select it, such as <c>["-d", "--display"]</c>.</param>
 	/// <param name="description">The one-line description shown in <c>--help</c>.</param>
-	/// <param name="onSet">Called once when the switch is present.</param>
+	/// <param name="onSet">Called once when the switch is present, however many times it was given.</param>
 	/// <returns>The builder, for chaining.</returns>
 	/// <exception cref="ArgumentNullException">Any argument is <see langword="null"/>.</exception>
 	public TrayAppBuilder Flag(IReadOnlyList<string> aliases, string description, Action onSet)
@@ -260,8 +260,9 @@ public sealed class TrayAppBuilder
 	/// <param name="valueName">The placeholder shown in <c>--help</c>, such as <c>text</c>.</param>
 	/// <param name="description">The one-line description shown in <c>--help</c>.</param>
 	/// <param name="onValue">
-	/// Called with the value. Throw <see cref="FormatException"/> or <see cref="ArgumentException"/> to
-	/// reject it: the message becomes the usage error and the tool exits 2.
+	/// Called with the value, once for each time the option was given and in the order given. Throw
+	/// <see cref="FormatException"/> or <see cref="ArgumentException"/> to reject it: the message becomes
+	/// the usage error and the tool exits 2.
 	/// </param>
 	/// <returns>The builder, for chaining.</returns>
 	/// <exception cref="ArgumentNullException">Any argument is <see langword="null"/>.</exception>
