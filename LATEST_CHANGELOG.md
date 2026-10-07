@@ -1,8 +1,7 @@
-## v1.4.0 (minor)
+## v1.4.1-pre.1 (prerelease)
 
-Changes since v1.3.0:
+Changes since v1.4.0:
 
-- Keep --status read-only by not restoring preferences for it ([@Claude](https://github.com/Claude))
-- Refuse an option alias that a standard switch or another option already owns ([@Claude](https://github.com/Claude))
-- Run a flag's handler once however many times it was given ([@Claude](https://github.com/Claude))
+- Bump MSTest.Sdk from 4.4.1 to 4.5.1 ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump the ktsu group with 5 updates ([@dependabot[bot]](https://github.com/dependabot[bot]))
 
