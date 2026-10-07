@@ -32,6 +32,13 @@ public static class CommandLineParser
 	}
 
 	/// <summary>
+	/// Gets the spellings of the standard switches, which an application option may not reuse: they are read
+	/// first, so an application option spelled the same way could never be reached.
+	/// </summary>
+	internal static IReadOnlyList<string> StandardAliases { get; } =
+		["-t", "--tray", "--no-tray", "-s", "--status", "-h", "--help", "-?", "-v", "--version", "-f", "--for"];
+
+	/// <summary>
 	/// Parses the arguments.
 	/// </summary>
 	/// <param name="args">The raw arguments, as handed to <c>Main</c>.</param>

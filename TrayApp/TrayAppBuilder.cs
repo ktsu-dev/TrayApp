@@ -5,6 +5,7 @@ namespace ktsu.TrayApp;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
+using System.Linq;
 using System.Reflection;
 using System.Threading.Tasks;
 using Avalonia;
@@ -247,9 +248,12 @@ public sealed class TrayAppBuilder
 	/// <param name="onSet">Called once when the switch is present, however many times it was given.</param>
 	/// <returns>The builder, for chaining.</returns>
 	/// <exception cref="ArgumentNullException">Any argument is <see langword="null"/>.</exception>
+	/// <exception cref="ArgumentException">
+	/// An alias is one of the standard switches, or is already taken by another option.
+	/// </exception>
 	public TrayAppBuilder Flag(IReadOnlyList<string> aliases, string description, Action onSet)
 	{
-		appOptions.Add(AppOption.Flag(aliases, description, onSet));
+		AddOption(AppOption.Flag(aliases, description, onSet), nameof(aliases));
 		return this;
 	}
 
@@ -266,9 +270,12 @@ public sealed class TrayAppBuilder
 	/// </param>
 	/// <returns>The builder, for chaining.</returns>
 	/// <exception cref="ArgumentNullException">Any argument is <see langword="null"/>.</exception>
+	/// <exception cref="ArgumentException">
+	/// An alias is one of the standard switches, or is already taken by another option.
+	/// </exception>
 	public TrayAppBuilder Option(IReadOnlyList<string> aliases, string valueName, string description, Action<string> onValue)
 	{
-		appOptions.Add(AppOption.Value(aliases, valueName, description, onValue));
+		AddOption(AppOption.Value(aliases, valueName, description, onValue), nameof(aliases));
 		return this;
 	}
 
@@ -662,5 +669,27 @@ public sealed class TrayAppBuilder
 			first.Refresh();
 			return first.IsChecked;
 		};
+	}
+
+	/// <summary>
+	/// Registers an application option, refusing an alias that could never be reached: the standard switches
+	/// are read before any application option, and the first option to claim an alias wins it.
+	/// </summary>
+	private void AddOption(AppOption option, string paramName)
+	{
+		foreach (string alias in option.Aliases)
+		{
+			if (CommandLineParser.StandardAliases.Contains(alias, StringComparer.Ordinal))
+			{
+				throw new ArgumentException($"'{alias}' is a standard switch and cannot be reused by an application option.", paramName);
+			}
+
+			if (appOptions.Any(existing => existing.Matches(alias)))
+			{
+				throw new ArgumentException($"'{alias}' is already taken by another option.", paramName);
+			}
+		}
+
+		appOptions.Add(option);
 	}
 }

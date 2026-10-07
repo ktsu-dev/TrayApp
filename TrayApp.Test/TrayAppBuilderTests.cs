@@ -32,6 +32,47 @@ public class TrayAppBuilderTests
 	}
 
 	[TestMethod]
+	[DataRow("-s")]
+	[DataRow("--status")]
+	[DataRow("-f")]
+	[DataRow("--for")]
+	[DataRow("-t")]
+	[DataRow("--no-tray")]
+	[DataRow("-h")]
+	[DataRow("-?")]
+	[DataRow("-v")]
+	public void Flag_WithAStandardSwitchAlias_Throws(string alias)
+	{
+		// The standard switches are read first, so an option spelled the same way could never be reached.
+		ArgumentException ex = Assert.ThrowsExactly<ArgumentException>(
+			() => TrayAppBuilder.Create("demo").Flag(["--quiet", alias], "Quiet.", () => { }));
+
+		Assert.Contains($"'{alias}'", ex.Message, StringComparison.Ordinal);
+		Assert.AreEqual("aliases", ex.ParamName);
+	}
+
+	[TestMethod]
+	public void Option_WithAStandardSwitchAlias_Throws()
+	{
+		ArgumentException ex = Assert.ThrowsExactly<ArgumentException>(
+			() => TrayAppBuilder.Create("demo").Option(["-f", "--file"], "path", "A file.", _ => { }));
+
+		Assert.Contains("'-f'", ex.Message, StringComparison.Ordinal);
+	}
+
+	[TestMethod]
+	public void Flag_WithAnAliasAnotherOptionTook_Throws()
+	{
+		TrayAppBuilder builder = TrayAppBuilder.Create("demo").Option(["-d", "--delay"], "time", "Delay.", _ => { });
+
+		ArgumentException ex = Assert.ThrowsExactly<ArgumentException>(
+			() => builder.Flag(["-d", "--display"], "Display.", () => { }));
+
+		Assert.Contains("'-d'", ex.Message, StringComparison.Ordinal);
+		Assert.AreEqual(1, builder.Build().Options.Count);
+	}
+
+	[TestMethod]
 	public void Build_CollectsItemsTogglesAndOptions()
 	{
 		TrayAppDefinition app = TrayAppBuilder.Create("demo")
