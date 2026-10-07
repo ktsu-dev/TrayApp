@@ -98,8 +98,9 @@ The type is `TrayAppBuilder` rather than `TrayApp` because a type whose name mat
 its own namespace makes every `TrayApp.Something` reference ambiguous - which is the reason CA1724 is
 suppressed across ktsu.Sdk, and not a reason to spend the name here.
 
-A run goes: parse, then `--help`/`--version`, then restore preferences (tray only), then apply the
-tool's own flags, then `--status`, then the run. The order of the middle two is the point: a remembered
+A run goes: parse, then `--help`/`--version`, then restore preferences (tray only, and not for
+`--status`, which reports the live state and must not run a setter), then apply the tool's own flags,
+then `--status`, then the run. The order of the middle two is the point: a remembered
 setting is restored first so that what was typed this time beats what the tray was left set to. The
 parser records matches rather than invoking handlers, which is what makes that order possible.
 
