@@ -1,6 +1,6 @@
-## v1.4.1-pre.2 (prerelease)
+## v1.4.1 (patch)
 
-Changes since v1.4.1-pre.1:
+Changes since v1.4.0:
 
-- Bump the ktsu group with 5 updates ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Reject a preference debounce a timer cannot wait for when it is configured [patch] ([@Claude](https://github.com/Claude))
 
