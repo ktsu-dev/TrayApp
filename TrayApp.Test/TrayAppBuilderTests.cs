@@ -129,6 +129,50 @@ public class TrayAppBuilderTests
 	}
 
 	[TestMethod]
+	[DataRow(-1000.0)]
+	[DataRow(-1.0)]
+	[DataRow(60.0 * 24 * 60 * 60 * 1000)]
+	public void Preferences_WithADebounceATimerCannotWaitFor_Throws(double milliseconds)
+	{
+		InMemoryPersistenceProvider<string> provider = new();
+		TrayAppBuilder builder = TrayAppBuilder.Create("demo");
+
+		ArgumentOutOfRangeException exception = Assert.ThrowsExactly<ArgumentOutOfRangeException>(
+			() => builder.Preferences(provider, debounce: TimeSpan.FromMilliseconds(milliseconds)));
+		Assert.AreEqual("debounce", exception.ParamName);
+	}
+
+	[TestMethod]
+	public void Preferences_WithAnInfiniteDebounce_Throws()
+	{
+		InMemoryPersistenceProvider<string> provider = new();
+
+		_ = Assert.ThrowsExactly<ArgumentOutOfRangeException>(
+			() => TrayAppBuilder.Create("demo").Preferences(provider, debounce: System.Threading.Timeout.InfiniteTimeSpan));
+	}
+
+	[TestMethod]
+	public void Preferences_WithZeroOrNoDebounce_IsAccepted()
+	{
+		InMemoryPersistenceProvider<string> provider = new();
+
+		Assert.AreEqual(TimeSpan.Zero, TrayAppBuilder.Create("demo").Preferences(provider, debounce: TimeSpan.Zero).Build().PreferenceDebounce);
+		Assert.AreEqual(TimeSpan.FromMilliseconds(500), TrayAppBuilder.Create("demo").Preferences(provider).Build().PreferenceDebounce);
+	}
+
+	[TestMethod]
+	public void Preferences_WithTheLongestDebounce_IsAcceptedAndATimerTakesIt()
+	{
+		InMemoryPersistenceProvider<string> provider = new();
+		TrayAppDefinition app = TrayAppBuilder.Create("demo")
+			.Preferences(provider, debounce: TrayAppBuilder.MaxPreferenceDebounce)
+			.Build();
+
+		using DebouncedPreferenceStore store = new(provider, "tray", app.PreferenceDebounce);
+		store.Set("a", true);
+	}
+
+	[TestMethod]
 	public async Task LoadPreferences_RestoresOnlyThePersistedToggles()
 	{
 		InMemoryPersistenceProvider<string> provider = new();
