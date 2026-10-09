@@ -187,6 +187,40 @@ public class CommandLineParserTests
 	}
 
 	[TestMethod]
+	[DataRow("--display")]
+	[DataRow("-d")]
+	[DataRow("--status")]
+	[DataRow("-t")]
+	public void TryParse_WithAnApplicationValueOptionFollowedByASwitch_FailsInsteadOfTakingTheSwitchAsItsValue(string next)
+	{
+		AppOption reason = AppOption.Value(["-r", "--reason"], "text", "Why.", _ => { });
+		AppOption display = AppOption.Flag(["-d", "--display"], "Keep the display on.", () => { });
+
+		Assert.IsFalse(CommandLineParser.TryParse(["--reason", next], [reason, display], out _, out string error));
+		Assert.AreEqual("'--reason' needs a value.", error);
+	}
+
+	[TestMethod]
+	public void TryParse_WithADurationFollowedByASwitch_SaysTheValueIsMissing()
+	{
+		Assert.IsFalse(CommandLineParser.TryParse(["--for", "--status"], NoOptions, out _, out string error));
+		Assert.AreEqual("'--for' needs a value.", error);
+	}
+
+	[TestMethod]
+	[DataRow("-")]
+	[DataRow("-5")]
+	[DataRow("some text")]
+	public void TryParse_WithAValueThatIsNotAKnownSwitch_TakesIt(string value)
+	{
+		AppOption reason = AppOption.Value(["-r", "--reason"], "text", "Why.", _ => { });
+
+		Assert.IsTrue(CommandLineParser.TryParse(["--reason", value], [reason], out CommandLineOptions options, out _));
+		Assert.AreEqual(1, options.Matches.Count);
+		Assert.AreEqual(value, options.Matches[0].Value);
+	}
+
+	[TestMethod]
 	public void TryParse_WithEverything_KeepsTheOrderOfApplicationOptions()
 	{
 		AppOption first = AppOption.Flag(["--one"], "One.", () => { });
