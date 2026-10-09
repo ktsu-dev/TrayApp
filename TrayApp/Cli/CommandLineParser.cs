@@ -61,7 +61,7 @@ public static class CommandLineParser
 		for (int index = 0; index < args.Count; index++)
 		{
 			string argument = args[index];
-			ReadResult result = ReadStandardOption(args, ref index, argument, state, out error);
+			ReadResult result = ReadStandardOption(args, ref index, argument, appOptions, state, out error);
 
 			if (result == ReadResult.Failed || (result == ReadResult.NotRecognised
 				&& !TryReadAppOption(args, ref index, argument, appOptions, state, out error)))
@@ -87,6 +87,7 @@ public static class CommandLineParser
 		IReadOnlyList<string> args,
 		ref int index,
 		string argument,
+		IReadOnlyList<AppOption> appOptions,
 		ParseState state,
 		out string error)
 	{
@@ -115,7 +116,7 @@ public static class CommandLineParser
 				return ReadResult.Read;
 
 			case "-f" or "--for":
-				return ReadDuration(args, ref index, argument, state, out error);
+				return ReadDuration(args, ref index, argument, appOptions, state, out error);
 
 			default:
 				return ReadResult.NotRecognised;
@@ -126,10 +127,11 @@ public static class CommandLineParser
 		IReadOnlyList<string> args,
 		ref int index,
 		string argument,
+		IReadOnlyList<AppOption> appOptions,
 		ParseState state,
 		out string error)
 	{
-		if (!TryTakeValue(args, ref index, argument, out string text, out error))
+		if (!TryTakeValue(args, ref index, argument, appOptions, out string text, out error))
 		{
 			return ReadResult.Failed;
 		}
@@ -170,7 +172,7 @@ public static class CommandLineParser
 
 		string? value = null;
 
-		if (matched.TakesValue && !TryTakeValue(args, ref index, argument, out value, out error))
+		if (matched.TakesValue && !TryTakeValue(args, ref index, argument, appOptions, out value, out error))
 		{
 			return false;
 		}
@@ -186,9 +188,18 @@ public static class CommandLineParser
 		return true;
 	}
 
-	private static bool TryTakeValue(IReadOnlyList<string> args, ref int index, string option, out string value, out string error)
+	private static bool TryTakeValue(
+		IReadOnlyList<string> args,
+		ref int index,
+		string option,
+		IReadOnlyList<AppOption> appOptions,
+		out string value,
+		out string error)
 	{
-		if (index + 1 >= args.Count)
+		// A switch after a value option means the value was forgotten. Taking the switch as the value would
+		// drop it without a word, so "--reason --status" would start a run instead of reporting. Anything
+		// else is a value, even if it starts with '-', so "-" and "-5" still get through.
+		if (index + 1 >= args.Count || IsKnownSwitch(args[index + 1], appOptions))
 		{
 			value = string.Empty;
 			error = $"'{option}' needs a value.";
@@ -200,6 +211,9 @@ public static class CommandLineParser
 		error = string.Empty;
 		return true;
 	}
+
+	private static bool IsKnownSwitch(string argument, IReadOnlyList<AppOption> appOptions) =>
+		StandardAliases.Contains(argument, StringComparer.Ordinal) || appOptions.Any(option => option.Matches(argument));
 
 	/// <summary>
 	/// What has been read so far, so that reading one argument is a small method rather than another arm of

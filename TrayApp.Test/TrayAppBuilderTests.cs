@@ -322,6 +322,21 @@ public class TrayAppBuilderTests
 	}
 
 	[TestMethod]
+	public async Task RunAsync_WithAValueOptionMissingItsValueBeforeStatus_ExitsTwo()
+	{
+		bool started = false;
+
+		int exitCode = await TrayAppBuilder.Create("demo")
+			.Option(["-r", "--reason"], "text", "Why.", _ => { })
+			.OnStart(() => started = true)
+			.RunAsync(["--no-tray", "--for", "0.05s", "--reason", "--status"])
+			.ConfigureAwait(false);
+
+		Assert.AreEqual(2, exitCode);
+		Assert.IsFalse(started);
+	}
+
+	[TestMethod]
 	public async Task RunAsync_WithStatus_ReportsWithoutStarting()
 	{
 		bool started = false;
