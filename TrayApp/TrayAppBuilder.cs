@@ -52,6 +52,11 @@ public sealed class TrayAppBuilder
 
 	private static readonly TimeSpan DefaultPreferenceDebounce = TimeSpan.FromMilliseconds(500);
 
+	/// <summary>
+	/// The longest debounce a <see cref="System.Threading.Timer"/> due time can hold, about 49.7 days.
+	/// </summary>
+	internal static readonly TimeSpan MaxPreferenceDebounce = TimeSpan.FromMilliseconds(uint.MaxValue - 1.0);
+
 	private readonly string name;
 	private readonly List<TrayMenuItem> items = [];
 	private readonly List<TrayToggleItem> toggles = [];
@@ -338,9 +343,16 @@ public sealed class TrayAppBuilder
 	/// <c>ktsu.Essentials.FileSystemProviders.Native</c> in the tool, and hand the result in here.
 	/// </param>
 	/// <param name="key">The key the state is stored under. The default suits a provider already namespaced by application.</param>
-	/// <param name="debounce">How long a burst of changes is coalesced for, or <see langword="null"/> for half a second.</param>
+	/// <param name="debounce">
+	/// How long a burst of changes is coalesced for, from zero up to about 49.7 days, or <see langword="null"/>
+	/// for half a second.
+	/// </param>
 	/// <returns>The builder, for chaining.</returns>
 	/// <exception cref="ArgumentNullException"><paramref name="provider"/> or <paramref name="key"/> is <see langword="null"/>.</exception>
+	/// <exception cref="ArgumentOutOfRangeException">
+	/// <paramref name="debounce"/> is negative, including <see cref="System.Threading.Timeout.InfiniteTimeSpan"/>,
+	/// or longer than a timer can wait.
+	/// </exception>
 	/// <remarks>
 	/// A tool that never calls this does no I/O at all and needs no provider package: persistence is a
 	/// dependency of the tool head, never of this library.
@@ -349,6 +361,18 @@ public sealed class TrayAppBuilder
 	{
 		Ensure.NotNull(provider);
 		Ensure.NotNull(key);
+
+		// The debounce is only handed to a timer on the first click of a persisted toggle, from inside the
+		// tray's click handler, so a value the timer refuses would surface there as a crash far from its
+		// cause. Infinite is refused too: it would mean "never write until exit", and an exit by SIGTERM
+		// does not flush.
+		if (debounce is TimeSpan value && (value < TimeSpan.Zero || value > MaxPreferenceDebounce))
+		{
+			throw new ArgumentOutOfRangeException(
+				nameof(debounce),
+				value,
+				"The preference debounce must be between zero and about 49.7 days.");
+		}
 
 		persistence = provider;
 		preferenceKey = key;

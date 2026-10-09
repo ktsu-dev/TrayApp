@@ -276,7 +276,7 @@ reference ambiguous.
 | `OnStart(Action action)` | `TrayAppBuilder` | What to run when the tool starts, in both modes. |
 | `OnStop(Action action)` | `TrayAppBuilder` | What to run on the way out, in both modes. |
 | `RefreshOn(Action<Action> subscribe)` | `TrayAppBuilder` | Hands the tool a delegate that refreshes the menu. |
-| `Preferences(IPersistenceProvider<string> provider, string key, TimeSpan? debounce)` | `TrayAppBuilder` | Remembers persisted toggles between runs. |
+| `Preferences(IPersistenceProvider<string> provider, string key, TimeSpan? debounce)` | `TrayAppBuilder` | Remembers persisted toggles between runs. `debounce` defaults to half a second; a negative value, `Timeout.InfiniteTimeSpan` or more than about 49.7 days throws `ArgumentOutOfRangeException`. |
 | `RunAsync(string[] args)` | `Task<int>` | Parses the command line and runs the tool. 0 success, 1 the platform refused, 2 the command line was wrong. |
 
 ### `TrayMenu`
