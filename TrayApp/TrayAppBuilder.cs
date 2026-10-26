@@ -7,7 +7,6 @@ using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Reflection;
-using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using Avalonia;
 using ktsu.Essentials;
@@ -594,45 +593,16 @@ public sealed class TrayAppBuilder
 			}
 		}
 
-		// Avalonia handles neither Ctrl+C nor SIGTERM, so without these a `kill`, a `systemctl stop` or a logout
-		// ended the process through the runtime's default handler: the tool's stop action never ran, and a
-		// toggle clicked inside the debounce window was never saved. Both are taken and turned into the same
-		// shutdown the Quit item asks for. Before the tray exists there is nothing to shut down, so the signal
-		// is left to end the process as it would have.
-		bool RequestShutdown()
-		{
-			if (host is not TrayApplication running)
-			{
-				return false;
-			}
-
-			running.RequestShutdown();
-			return true;
-		}
-
-		void OnCancelKeyPress(object? sender, ConsoleCancelEventArgs eventArgs) => eventArgs.Cancel = RequestShutdown();
-
 		try
 		{
-			Console.CancelKeyPress += OnCancelKeyPress;
-
-			// SIGTERM does not go through CancelKeyPress.
-			using PosixSignalRegistration termination = PosixSignalRegistration.Create(
-				PosixSignal.SIGTERM,
-				context => context.Cancel = RequestShutdown());
-
-			try
+			// Released before any fallback to the console, which takes the same signals itself.
+			using (new ShutdownSignals(() => host))
 			{
 				// StartWithClassicDesktopLifetime blocks until the tray quits.
 				return AppBuilder.Configure(() => host = new TrayApplication(app, menu, options.Duration, Remember))
 					.UsePlatformDetect()
 					.With(new MacOSPlatformOptions { ShowInDock = false })
 					.StartWithClassicDesktopLifetime([], Avalonia.Controls.ShutdownMode.OnExplicitShutdown);
-			}
-			finally
-			{
-				// Unhooked before any fallback to the console, which installs handlers of its own.
-				Console.CancelKeyPress -= OnCancelKeyPress;
 			}
 		}
 		catch (Exception ex)

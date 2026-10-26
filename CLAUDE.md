@@ -54,6 +54,7 @@ menu model and its own platform layer, and the library brings everything else. T
 - `TrayApp/Tray/TrayApplication.cs` - The Avalonia host: projects the menu model onto native menu items
   and owns `HasStarted`
 - `TrayApp/ConsoleRunner.cs` - The headless mode, including Ctrl+C and `SIGTERM`
+- `TrayApp/Tray/ShutdownSignals.cs` - The tray mode's Ctrl+C and `SIGTERM`, turned into the Quit item's shutdown
 - `TrayApp/TrayIconSet.cs` - Loads the tray PNGs by embedded resource name, and says what the assembly
   does have when a name misses
 - `TrayApp/DesktopSession.cs` - Whether this process has a desktop session to put a tray icon in
@@ -182,7 +183,7 @@ dbus-run-session -- scripts/check-tray-signals.sh
 
 Each run has to exit 0 and leave the toggle saved. An exit of 143 or 130 means the signal killed the
 process outright, so the tool's `OnStop` never ran and the pending preference write was lost. Avalonia
-handles neither signal, which is why `RunTray` installs its own handlers.
+handles neither signal, which is why `RunTray` holds a `ShutdownSignals` for the length of the run.
 
 ## Packaging
 

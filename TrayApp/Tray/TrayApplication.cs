@@ -251,12 +251,16 @@ internal sealed class TrayApplication : Application, IDisposable
 	/// flush its preferences. Only the first request posts anything: Ctrl+C pressed twice, or a signal
 	/// arriving while the user is quitting, must not shut down a lifetime that is already shutting down.
 	/// </remarks>
-	internal void RequestShutdown()
+	/// <returns><see langword="true"/> when this call posted the shutdown, <see langword="false"/> when an earlier one had.</returns>
+	internal bool RequestShutdown()
 	{
-		if (Interlocked.Exchange(ref shutdownRequested, 1) == 0)
+		if (Interlocked.Exchange(ref shutdownRequested, 1) != 0)
 		{
-			Dispatcher.UIThread.Post(Shutdown);
+			return false;
 		}
+
+		Dispatcher.UIThread.Post(Shutdown);
+		return true;
 	}
 
 	private void OnExit(object? sender, ControlledApplicationLifetimeExitEventArgs e) => Dispose();
