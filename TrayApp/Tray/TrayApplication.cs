@@ -4,6 +4,7 @@ namespace ktsu.TrayApp.Tray;
 
 using System;
 using System.Collections.Generic;
+using System.Threading;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
@@ -40,6 +41,7 @@ internal sealed class TrayApplication : Application, IDisposable
 	private TrayIcon? trayIcon;
 	private DispatcherTimer? expiryTimer;
 	private bool disposed;
+	private int shutdownRequested;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="TrayApplication"/> class.
@@ -238,6 +240,24 @@ internal sealed class TrayApplication : Application, IDisposable
 	}
 
 	private void OnQuitRequested(object? sender, EventArgs e) => Shutdown();
+
+	/// <summary>
+	/// Ends the run the way the Quit item does, from any thread.
+	/// </summary>
+	/// <remarks>
+	/// This is what a signal handler calls, so it runs on whichever thread delivered the signal. The shutdown
+	/// itself is posted to the UI thread, where the lifetime expects it, and from there the run ends through
+	/// <see cref="OnExit"/> and <see cref="Dispose"/>, so the tool's stop action runs and the caller gets to
+	/// flush its preferences. Only the first request posts anything: Ctrl+C pressed twice, or a signal
+	/// arriving while the user is quitting, must not shut down a lifetime that is already shutting down.
+	/// </remarks>
+	internal void RequestShutdown()
+	{
+		if (Interlocked.Exchange(ref shutdownRequested, 1) == 0)
+		{
+			Dispatcher.UIThread.Post(Shutdown);
+		}
+	}
 
 	private void OnExit(object? sender, ControlledApplicationLifetimeExitEventArgs e) => Dispose();
 

@@ -68,6 +68,8 @@ menu model and its own platform layer, and the library brings everything else. T
   without a panel
 - `scripts/click-tray-menu.py` - Clicks an entry in a running tool's tray menu over D-Bus, and prints the
   menu either side of it
+- `scripts/check-tray-signals.sh` - Checks that `SIGTERM` and `SIGINT` end a tray run through `OnStop`
+  and the preference flush
 
 ### Dependencies
 
@@ -168,6 +170,19 @@ It prints the menu either side of the click, so the whole chain is visible from 
 checked state flips, the disabled status line re-reads itself from the tool's getter, and - for a
 persisted toggle - the preference file lands under `~/.config`. Assertions on `TrayMenu` cover the model;
 this is what covers the projection onto native menu items.
+
+`scripts/check-tray-signals.sh` covers the way out that does not go through the menu. It runs the demo in
+the tray, clicks the remembered toggle, and sends `SIGTERM`, then `SIGINT`, inside the preference store's
+500 ms debounce window:
+
+```bash
+dotnet build examples/TrayApp.Demo
+dbus-run-session -- scripts/check-tray-signals.sh
+```
+
+Each run has to exit 0 and leave the toggle saved. An exit of 143 or 130 means the signal killed the
+process outright, so the tool's `OnStop` never ran and the pending preference write was lost. Avalonia
+handles neither signal, which is why `RunTray` installs its own handlers.
 
 ## Packaging
 
