@@ -1,7 +1,6 @@
-## v1.4.3 (patch)
+## v1.4.4-pre.1 (prerelease)
 
-Changes since v1.4.2:
+Changes since v1.4.3:
 
-- Move the tray's signal handling into ShutdownSignals so it is unit tested (Claude)
-- [patch] Shut a tray run down through OnStop on SIGTERM and Ctrl+C (Claude)
+- Bump MSTest.Sdk from 4.5.1 to 4.5.2 (dependabot[bot])
 
