@@ -595,11 +595,15 @@ public sealed class TrayAppBuilder
 
 		try
 		{
-			// StartWithClassicDesktopLifetime blocks until the tray quits.
-			return AppBuilder.Configure(() => host = new TrayApplication(app, menu, options.Duration, Remember))
-				.UsePlatformDetect()
-				.With(new MacOSPlatformOptions { ShowInDock = false })
-				.StartWithClassicDesktopLifetime([], Avalonia.Controls.ShutdownMode.OnExplicitShutdown);
+			// Released before any fallback to the console, which takes the same signals itself.
+			using (new ShutdownSignals(() => host))
+			{
+				// StartWithClassicDesktopLifetime blocks until the tray quits.
+				return AppBuilder.Configure(() => host = new TrayApplication(app, menu, options.Duration, Remember))
+					.UsePlatformDetect()
+					.With(new MacOSPlatformOptions { ShowInDock = false })
+					.StartWithClassicDesktopLifetime([], Avalonia.Controls.ShutdownMode.OnExplicitShutdown);
+			}
 		}
 		catch (Exception ex)
 		{
