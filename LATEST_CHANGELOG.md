@@ -1,8 +1,7 @@
-## v1.4.3-pre.2 (prerelease)
+## v1.4.3 (patch)
 
-Changes since v1.4.3-pre.1:
+Changes since v1.4.2:
 
-- Bump Avalonia.Desktop from 12.1.3 to 12.1.4 (dependabot[bot])
-- Bump Polyfill from 11.4.3 to 11.4.5 (dependabot[bot])
-- Bump the ktsu group with 5 updates (dependabot[bot])
+- Move the tray's signal handling into ShutdownSignals so it is unit tested (Claude)
+- [patch] Shut a tray run down through OnStop on SIGTERM and Ctrl+C (Claude)
 
