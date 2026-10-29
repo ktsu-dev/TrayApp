@@ -6,21 +6,24 @@ using System;
 using System.Runtime.InteropServices;
 
 /// <summary>
-/// Turns Ctrl+C and <c>SIGTERM</c> into the shutdown the tray's Quit item asks for, for as long as it is held.
+/// Turns Ctrl+C, <c>SIGTERM</c> and <c>SIGHUP</c> into the shutdown the tray's Quit item asks for, for as long as
+/// it is held.
 /// </summary>
 /// <remarks>
-/// Avalonia handles neither signal, so without this a <c>kill</c>, a <c>systemctl stop</c> or a logout ended a
-/// tray run through the runtime's default handler: the tool's stop action never ran, and a toggle clicked inside
-/// the preference store's debounce window was never saved. Before the tray exists there is nothing to shut
+/// Avalonia handles none of these signals, so without this a <c>kill</c>, a <c>systemctl stop</c>, a logout or
+/// closing the terminal the tool was started from ended a tray run through the runtime's default handler: the
+/// tool's stop action never ran, and a toggle clicked inside the preference store's debounce window was never
+/// saved. Before the tray exists there is nothing to shut
 /// down, so the signal is left to end the process as it would have.
 /// </remarks>
 internal sealed class ShutdownSignals : IDisposable
 {
 	private readonly Func<TrayApplication?> host;
 	private readonly PosixSignalRegistration termination;
+	private readonly PosixSignalRegistration hangup;
 
 	/// <summary>
-	/// Initializes a new instance of the <see cref="ShutdownSignals"/> class, taking both signals.
+	/// Initializes a new instance of the <see cref="ShutdownSignals"/> class, taking all three signals.
 	/// </summary>
 	/// <param name="host">Reads the tray host, which does not exist until Avalonia has called back for it.</param>
 	internal ShutdownSignals(Func<TrayApplication?> host)
@@ -30,21 +33,23 @@ internal sealed class ShutdownSignals : IDisposable
 
 		Console.CancelKeyPress += OnCancelKeyPress;
 
-		// SIGTERM does not go through CancelKeyPress.
+		// SIGTERM and SIGHUP do not go through CancelKeyPress.
 		termination = PosixSignalRegistration.Create(PosixSignal.SIGTERM, OnTermination);
+		hangup = PosixSignalRegistration.Create(PosixSignal.SIGHUP, OnTermination);
 	}
 
 	/// <summary>
-	/// Releases both signals back to their default handling.
+	/// Releases all three signals back to their default handling.
 	/// </summary>
 	public void Dispose()
 	{
 		Console.CancelKeyPress -= OnCancelKeyPress;
 		termination.Dispose();
+		hangup.Dispose();
 	}
 
 	/// <summary>
-	/// Handles <c>SIGTERM</c>, keeping the process alive only when there is a tray to shut down instead.
+	/// Handles <c>SIGTERM</c> and <c>SIGHUP</c>, keeping the process alive only when there is a tray to shut down instead.
 	/// </summary>
 	/// <param name="context">The signal being delivered.</param>
 	internal void OnTermination(PosixSignalContext context) => context.Cancel = RequestShutdown();

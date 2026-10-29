@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Copyright (c) 2023-2026 ktsu-dev contributors
 #
-# Checks that a tray run ends through the tool's own shutdown when it is sent SIGTERM or SIGINT: the
+# Checks that a tray run ends through the tool's own shutdown when it is sent SIGTERM, SIGINT or SIGHUP: the
 # process exits 0 rather than dying to the signal, and a toggle clicked inside the preference store's
 # 500 ms debounce window is still saved. Needs Xvfb, dbus-run-session and `pip install dbus-next`.
 #
@@ -82,4 +82,4 @@ check() {
 	echo "SIG$signal: shut down cleanly and saved the toggle"
 }
 
-check TERM && check INT
+check TERM && check INT && check HUP
