@@ -2,18 +2,22 @@
 
 namespace ktsu.TrayApp.Test;
 
+using System;
+using System.Diagnostics;
 using System.Runtime.InteropServices;
+using System.Threading;
 using ktsu.TrayApp;
 using ktsu.TrayApp.Menu;
 using ktsu.TrayApp.Tray;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 /// <summary>
-/// Tests for how a tray run answers Ctrl+C and <c>SIGTERM</c>.
+/// Tests for how a tray run answers Ctrl+C, <c>SIGTERM</c> and <c>SIGHUP</c>.
 /// </summary>
 /// <remarks>
-/// The signals themselves are not sent: the handlers are called directly, so the tests show what each one
-/// decides without a display or a process to kill. <c>scripts/check-tray-signals.sh</c> covers the real thing.
+/// Most of these call the handlers directly, so they show what each one decides without a display or a process
+/// to kill. The <c>SIGHUP</c> case sends the real signal, because what it checks is that the signal is taken at
+/// all. <c>scripts/check-tray-signals.sh</c> covers the whole run.
 /// </remarks>
 [TestClass]
 [DoNotParallelize]
@@ -49,6 +53,51 @@ public class ShutdownSignalsTests
 
 		// The signal already asked, so nothing is left for a second request to post.
 		Assert.IsFalse(host.RequestShutdown());
+	}
+
+	[TestMethod]
+	[OSCondition(OperatingSystems.Linux | OperatingSystems.OSX)]
+	public void HangupOnceTheTrayExists_IsTakenAndShutsTheTrayDown()
+	{
+		using TrayApplication host = Host();
+		int asked = 0;
+		using ShutdownSignals signals = new(() =>
+		{
+			Interlocked.Increment(ref asked);
+			return host;
+		});
+
+		// Keeps the test host alive whatever ShutdownSignals does: without it, a SIGHUP nothing takes ends the
+		// process, and the failure would show up as a crashed run instead of this assertion.
+		using ManualResetEventSlim delivered = new();
+		using PosixSignalRegistration guard = PosixSignalRegistration.Create(PosixSignal.SIGHUP, context =>
+		{
+			context.Cancel = true;
+			delivered.Set();
+		});
+
+		using (Process kill = Process.Start("kill", ["-HUP", Environment.ProcessId.ToString(System.Globalization.CultureInfo.InvariantCulture)]))
+		{
+			kill.WaitForExit();
+			Assert.AreEqual(0, kill.ExitCode);
+		}
+
+		Assert.IsTrue(delivered.Wait(TimeSpan.FromSeconds(10)), "SIGHUP was never delivered");
+		Assert.IsTrue(SpinWait.SpinUntil(() => Volatile.Read(ref asked) > 0, TimeSpan.FromSeconds(10)), "SIGHUP did not reach the tray");
+
+		// The signal already asked, so nothing is left for a second request to post.
+		Assert.IsFalse(host.RequestShutdown());
+	}
+
+	[TestMethod]
+	public void HangupBeforeTheTrayExists_IsLeftToEndTheProcess()
+	{
+		using ShutdownSignals signals = new(() => null);
+		PosixSignalContext context = new(PosixSignal.SIGHUP);
+
+		signals.OnTermination(context);
+
+		Assert.IsFalse(context.Cancel);
 	}
 
 	[TestMethod]
