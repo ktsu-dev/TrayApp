@@ -94,16 +94,7 @@ public static class DurationParser
 			return true;
 		}
 
-		TimeSpan converted;
-		try
-		{
-			converted = TimeSpan.FromSeconds(totalSeconds);
-		}
-		catch (OverflowException)
-		{
-			duration = TimeSpan.MaxValue;
-			return true;
-		}
+		TimeSpan converted = TimeSpan.FromSeconds(totalSeconds);
 
 		// The check above ran on the double: a value under one tick passes it and then rounds to zero, which
 		// would start the tool and stop it in the same moment.
