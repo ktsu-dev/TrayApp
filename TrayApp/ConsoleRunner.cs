@@ -47,27 +47,19 @@ internal static class ConsoleRunner
 			return ExitFailure;
 		}
 
-		using ManualResetEventSlim stopping = new(initialState: false);
+		using StopRequest stopping = new();
 
-		void RequestStop() => stopping.Set();
-
-		void OnCancelKeyPress(object? sender, ConsoleCancelEventArgs eventArgs)
-		{
-			// Take the interrupt rather than letting the runtime tear the process down, so whatever the tool
-			// is holding is released through the normal path instead of being left to the operating system.
-			eventArgs.Cancel = true;
-			RequestStop();
-		}
+		// Take the first interrupt rather than letting the runtime tear the process down, so whatever the tool
+		// is holding is released through the normal path instead of being left to the operating system. A
+		// repeated one, or one arriving while the stop action runs, is left to end the process, so a stop
+		// action that hangs can still be interrupted.
+		void OnCancelKeyPress(object? sender, ConsoleCancelEventArgs eventArgs) => eventArgs.Cancel = stopping.Request();
 
 		Console.CancelKeyPress += OnCancelKeyPress;
 
 		// SIGTERM is how a service manager or `docker stop` ends this, and it does not go through
 		// CancelKeyPress.
-		using PosixSignalRegistration termination = PosixSignalRegistration.Create(PosixSignal.SIGTERM, context =>
-		{
-			context.Cancel = true;
-			RequestStop();
-		});
+		using PosixSignalRegistration termination = PosixSignalRegistration.Create(PosixSignal.SIGTERM, context => context.Cancel = stopping.Request());
 
 		try
 		{
@@ -85,6 +77,10 @@ internal static class ConsoleRunner
 		finally
 		{
 			Console.CancelKeyPress -= OnCancelKeyPress;
+
+			// The run is stopping whatever ended the wait, so from here a SIGTERM ends the process instead of
+			// being taken for a stop that is already under way.
+			stopping.Close();
 			app.OnStop?.Invoke();
 		}
 
@@ -101,5 +97,51 @@ internal static class ConsoleRunner
 		return string.Create(
 			CultureInfo.InvariantCulture,
 			$"{app.Name}: {app.Describe()}{until}. Press Ctrl+C to stop.");
+	}
+
+	/// <summary>
+	/// The one stop a console run takes from a signal.
+	/// </summary>
+	internal sealed class StopRequest : IDisposable
+	{
+		private readonly ManualResetEventSlim requested = new(initialState: false);
+		private int closed;
+
+		/// <summary>
+		/// Asks the run to stop.
+		/// </summary>
+		/// <returns>
+		/// <see langword="true"/> when this call is the one that stopped the run, so the signal behind it should be
+		/// cancelled; <see langword="false"/> when the run was already stopping, so the signal should end the process.
+		/// </returns>
+		internal bool Request()
+		{
+			if (Interlocked.Exchange(ref closed, 1) != 0)
+			{
+				return false;
+			}
+
+			requested.Set();
+			return true;
+		}
+
+		/// <summary>
+		/// Marks the run as stopping without a signal, so any later request is left to end the process.
+		/// </summary>
+		internal void Close() => Interlocked.Exchange(ref closed, 1);
+
+		/// <summary>
+		/// Blocks until a stop is requested.
+		/// </summary>
+		internal void Wait() => requested.Wait();
+
+		/// <summary>
+		/// Blocks until a stop is requested or the time runs out.
+		/// </summary>
+		/// <param name="timeout">How long to wait.</param>
+		internal void Wait(TimeSpan timeout) => requested.Wait(timeout);
+
+		/// <inheritdoc/>
+		public void Dispose() => requested.Dispose();
 	}
 }

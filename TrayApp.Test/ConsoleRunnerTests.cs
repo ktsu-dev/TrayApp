@@ -26,6 +26,29 @@ public class ConsoleRunnerTests
 		new() { TraySuppressed = true, Duration = TimeSpan.FromMilliseconds(50) };
 
 	[TestMethod]
+	public void StopRequest_TakesOnlyTheFirstRequest()
+	{
+		using ConsoleRunner.StopRequest stopping = new();
+
+		Assert.IsTrue(stopping.Request());
+
+		// A repeated Ctrl+C or SIGTERM is left to end the process, so a hung stop action can be interrupted.
+		Assert.IsFalse(stopping.Request());
+	}
+
+	[TestMethod]
+	public void StopRequest_AfterTheRunStopsOnItsOwn_TakesNoRequest()
+	{
+		using ConsoleRunner.StopRequest stopping = new();
+
+		// The --for window ran out, so the stop action is already running when the signal arrives.
+		stopping.Wait(TimeSpan.Zero);
+		stopping.Close();
+
+		Assert.IsFalse(stopping.Request());
+	}
+
+	[TestMethod]
 	public void Run_WithADuration_StartsStopsAndSucceeds()
 	{
 		List<string> order = [];
