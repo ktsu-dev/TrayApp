@@ -64,6 +64,12 @@ public sealed class TrayToggleItem : TrayMenuItem
 	public void Set(bool value) => setState(value);
 
 	/// <summary>
+	/// Reads what the tool currently reports, without touching <see cref="IsChecked"/>.
+	/// </summary>
+	/// <returns>The getter's value. The getter belongs to the tool and may throw.</returns>
+	internal bool ReadState() => getState();
+
+	/// <summary>
 	/// Sets the toggle to the opposite of what the tool currently reports.
 	/// </summary>
 	/// <remarks>
