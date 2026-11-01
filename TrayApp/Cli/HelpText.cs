@@ -15,6 +15,10 @@ public static class HelpText
 	private const int MinimumDescriptionColumn = 25;
 	private const int MaximumDescriptionColumn = 34;
 
+	// Every row starts with the indent, and its description starts at least the gap after the option text.
+	private const string Indent = "  ";
+	private const string Gap = "  ";
+
 	/// <summary>
 	/// Builds the usage text printed for <c>--help</c> and for a bad command line.
 	/// </summary>
@@ -48,7 +52,7 @@ public static class HelpText
 
 		foreach ((string columns, _) in rows)
 		{
-			column = Math.Max(column, Math.Min(MaximumDescriptionColumn, columns.Length + 2));
+			column = Math.Max(column, Math.Min(MaximumDescriptionColumn, Indent.Length + columns.Length + Gap.Length));
 		}
 
 		StringBuilder usage = new();
@@ -129,21 +133,21 @@ public static class HelpText
 		string[] lines = description.Split('\n');
 		string padding = new(' ', column);
 
-		if (columns.Length + 2 > column)
+		if (Indent.Length + columns.Length + Gap.Length > column)
 		{
 			// A long alias list gets its description on the next line rather than pushing every other
 			// description across the terminal.
-			usage.AppendLine($"  {columns}");
+			usage.AppendLine($"{Indent}{columns}");
 		}
 		else
 		{
-			usage.AppendLine($"  {columns.PadRight(column - 2)}{lines[0]}");
+			usage.AppendLine($"{Indent}{columns.PadRight(column - Indent.Length)}{lines[0]}");
 			lines = lines[1..];
 		}
 
 		foreach (string line in lines)
 		{
-			usage.AppendLine($"  {padding[2..]}{line}");
+			usage.AppendLine($"{padding}{line}");
 		}
 	}
 }
