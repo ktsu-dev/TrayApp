@@ -48,6 +48,28 @@ public class StatusReportTests
 	}
 
 	[TestMethod]
+	public void Build_WithAThrowingDetail_ReportsTheErrorInItsRowAndKeepsTheRest()
+	{
+		string report = StatusReport.Build(
+			"demo",
+			"holding",
+			[
+				new StatusDetail("Inhibitor", () => throw new InvalidOperationException("systemd-inhibit was not found on PATH")),
+				new StatusDetail("Helper", () => "present"),
+			]);
+
+		Assert.Contains("Platform:", report, StringComparison.Ordinal);
+		Assert.Contains("Tray icon:", report, StringComparison.Ordinal);
+		Assert.Contains("Inhibitor:     error: systemd-inhibit was not found on PATH", report, StringComparison.Ordinal);
+		Assert.Contains("Helper:", report, StringComparison.Ordinal);
+		Assert.Contains("present", report, StringComparison.Ordinal);
+	}
+
+	[TestMethod]
+	public void Read_WithAThrowingGetter_ReturnsTheError() =>
+		Assert.AreEqual("error: boom", StatusReport.Read(() => throw new InvalidOperationException("boom")));
+
+	[TestMethod]
 	public void Build_EndsWithoutATrailingNewline()
 	{
 		string report = StatusReport.Build("demo", "holding", NoDetails);

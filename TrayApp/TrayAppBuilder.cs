@@ -437,7 +437,7 @@ public sealed class TrayAppBuilder
 
 			if (options.ShowStatus)
 			{
-				Console.WriteLine(StatusReport.Build(app.Name, app.Status?.Invoke(), app.StatusDetails));
+				Console.WriteLine(StatusReport.Build(app.Name, app.Status is null ? null : StatusReport.Read(app.Status), app.StatusDetails));
 				return Task.FromResult(ExitSuccess);
 			}
 
