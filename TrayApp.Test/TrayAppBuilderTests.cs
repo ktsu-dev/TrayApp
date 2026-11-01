@@ -4,6 +4,7 @@ namespace ktsu.TrayApp.Test;
 
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Threading.Tasks;
 using ktsu.Essentials.PersistenceProviders.InMemory;
 using ktsu.TrayApp;
@@ -301,6 +302,21 @@ public class TrayAppBuilderTests
 		Assert.IsTrue(CommandLineParser.TryParse(["--count", "lots"], app.Options, out CommandLineOptions options, out _));
 		Assert.IsFalse(TrayAppBuilder.TryApplyOptions(options, out string error));
 		Assert.AreEqual("'lots' is not a number.", error);
+	}
+
+	[TestMethod]
+	public void TryApplyOptions_WhenAHandlerParsesAnOutOfRangeNumber_ReportsItAsAUsageError()
+	{
+		// int.Parse throws OverflowException, not FormatException, for a number too big for an int, and
+		// that used to escape as an unhandled exception (#69).
+		TrayAppDefinition app = TrayAppBuilder.Create("demo")
+			.Option(["--count"], "n", "How many.", value => _ = int.Parse(value, CultureInfo.InvariantCulture))
+			.Build();
+
+		Assert.IsTrue(CommandLineParser.TryParse(["--count", "99999999999"], app.Options, out CommandLineOptions options, out _));
+		Assert.IsFalse(TrayAppBuilder.TryApplyOptions(options, out string error));
+		string expected = Assert.ThrowsExactly<OverflowException>(() => int.Parse("99999999999", CultureInfo.InvariantCulture)).Message;
+		Assert.AreEqual(expected, error);
 	}
 
 	[TestMethod]
