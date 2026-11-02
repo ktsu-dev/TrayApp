@@ -48,6 +48,32 @@ public class StatusReportTests
 	}
 
 	[TestMethod]
+	public void Build_WithALongDetailLabel_KeepsAGapAndAlignsEveryValue()
+	{
+		string report = StatusReport.Build(
+			"demo",
+			"on",
+			[new StatusDetail("Power assertion", () => "held"), new StatusDetail("Inhibitor path", () => "/usr/bin/systemd-inhibit")]);
+
+		Assert.Contains("Power assertion: ", report, StringComparison.Ordinal);
+		Assert.Contains("Inhibitor path: ", report, StringComparison.Ordinal);
+
+		string[] rows = report.Split('\n')[1..];
+		int column = rows[0].IndexOf(':', StringComparison.Ordinal) + 1;
+		while (rows[0][column] == ' ')
+		{
+			column++;
+		}
+
+		foreach (string row in rows)
+		{
+			string line = row.TrimEnd('\r');
+			Assert.AreEqual(' ', line[column - 1], $"Row \"{line}\" has no gap before its value column.");
+			Assert.AreNotEqual(' ', line[column], $"Row \"{line}\" does not start its value at column {column}.");
+		}
+	}
+
+	[TestMethod]
 	public void Build_EndsWithoutATrailingNewline()
 	{
 		string report = StatusReport.Build("demo", "holding", NoDetails);

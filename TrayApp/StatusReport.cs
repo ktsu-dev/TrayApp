@@ -19,6 +19,7 @@ using ktsu.TrayApp.Cli;
 public static class StatusReport
 {
 	private const int LabelWidth = 15;
+	private const int MinimumGap = 1;
 
 	/// <summary>
 	/// Describes what a tool can do on this machine.
@@ -33,26 +34,39 @@ public static class StatusReport
 		Ensure.NotNull(name);
 		Ensure.NotNull(details);
 
-		StringBuilder report = new();
-		report.AppendLine(HelpText.Version(name));
-		AppendRow(report, "Platform", string.Create(CultureInfo.InvariantCulture, $"{RuntimeInformation.OSDescription.Trim()} ({RuntimeInformation.RuntimeIdentifier})"));
-		AppendRow(report, "Tray icon", DesktopSession.Explanation);
+		List<(string Label, string Value)> rows =
+		[
+			("Platform", string.Create(CultureInfo.InvariantCulture, $"{RuntimeInformation.OSDescription.Trim()} ({RuntimeInformation.RuntimeIdentifier})")),
+			("Tray icon", DesktopSession.Explanation),
+		];
 
 		if (status is not null)
 		{
-			AppendRow(report, "State", status);
+			rows.Add(("State", status));
 		}
 
 		foreach (StatusDetail detail in details)
 		{
-			AppendRow(report, detail.Label, detail.Value());
+			rows.Add((detail.Label, detail.Value()));
+		}
+
+		// The value column starts after the longest label, so a long label still has a gap before its value
+		// and every value lines up with the others.
+		int labelWidth = LabelWidth;
+		foreach ((string label, _) in rows)
+		{
+			labelWidth = Math.Max(labelWidth, label.Length + MinimumGap + 1);
+		}
+
+		StringBuilder report = new();
+		report.AppendLine(HelpText.Version(name));
+		foreach ((string label, string value) in rows)
+		{
+			report.AppendLine($"{(label + ':').PadRight(labelWidth)}{value}");
 		}
 
 		// Every row above appended a newline; the report is quoted and compared in tests, so it ends where
 		// the last row's text ends.
 		return report.ToString().TrimEnd('\r', '\n');
 	}
-
-	private static void AppendRow(StringBuilder report, string label, string value) =>
-		report.AppendLine($"{(label + ':').PadRight(LabelWidth)}{value}");
 }
