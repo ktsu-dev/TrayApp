@@ -214,14 +214,20 @@ internal sealed class TrayApplication : Application, IDisposable
 	}
 
 	/// <summary>
-	/// Flips the first toggle the user could have clicked in the menu.
+	/// Flips the first toggle in the menu, the one the icon shows by default, and does nothing when that
+	/// toggle is disabled.
 	/// </summary>
 	/// <remarks>
-	/// A disabled toggle is skipped, because this is the only activation path with nothing between the
+	/// A disabled first toggle is not passed over for the next one. The icon follows the first toggle unless
+	/// the tool says otherwise, so flipping a later one would change - and, with a <c>persistAs</c> key,
+	/// remember - a setting the icon gives no sign of.
+	/// <para>
+	/// A disabled toggle is left alone because this is the only activation path with nothing between the
 	/// click and the tool's setter. The menu path is projected onto <see cref="NativeMenuItem"/>s that
 	/// the toolkit greys out and refuses to raise <c>Click</c> for, so the tray icon is where a tool's
 	/// <c>isEnabled</c> predicate would otherwise be silently ignored - the menu would show the action
 	/// as unavailable while a click on the icon ran it anyway.
+	/// </para>
 	/// <para>
 	/// Internal so that it can be driven without a platform: everything above this reads menu state
 	/// that <see cref="TrayMenu.Refresh"/> populates with no display attached.
@@ -231,9 +237,13 @@ internal sealed class TrayApplication : Application, IDisposable
 	{
 		foreach ((TrayMenuItem model, _) in entries)
 		{
-			if (model is TrayToggleItem { IsEnabled: true })
+			if (model is TrayToggleItem toggle)
 			{
-				Activate(model);
+				if (toggle.IsEnabled)
+				{
+					Activate(model);
+				}
+
 				return;
 			}
 		}

@@ -149,6 +149,32 @@ public class TrayApplicationTests
 	}
 
 	[TestMethod]
+	public void TrayIconClick_WithTheFirstToggleDisabled_LeavesTheSecondToggleAlone()
+	{
+		int firstSetterCalls = 0;
+		int secondSetterCalls = 0;
+		int remembered = 0;
+
+		TrayAppDefinition app = TrayAppBuilder.Create("demo")
+			.DisplayName("Demo")
+			.Toggle("Keep awake", () => false, _ => firstSetterCalls++, isEnabled: () => false)
+			.Toggle("Start at login", () => false, _ => secondSetterCalls++)
+			.Build();
+
+		TrayMenu menu = new(app.DisplayName, app.Status, app.Items);
+		using TrayApplication host = new(app, menu, duration: null, onToggled: _ => remembered++);
+		menu.Refresh();
+
+		host.OnTrayIconClicked(this, EventArgs.Empty);
+
+		// The icon follows the first toggle, so a click on it that flipped the second would change - and
+		// remember - a setting the icon gives no sign of. A disabled first toggle makes the click do nothing.
+		Assert.AreEqual(0, firstSetterCalls);
+		Assert.AreEqual(0, secondSetterCalls);
+		Assert.AreEqual(0, remembered);
+	}
+
+	[TestMethod]
 	public void TrayIconClick_WithTheToggleEnabled_RunsTheToolsSetter()
 	{
 		int setterCalls = 0;
