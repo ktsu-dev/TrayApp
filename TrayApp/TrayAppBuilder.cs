@@ -583,7 +583,7 @@ public sealed class TrayAppBuilder
 			{
 				match.Option.Apply(match.Value);
 			}
-			catch (Exception ex) when (ex is FormatException or ArgumentException)
+			catch (Exception ex) when (ex is FormatException or ArgumentException or OverflowException)
 			{
 				error = ex.Message;
 				return false;

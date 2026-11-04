@@ -406,6 +406,21 @@ public class TrayAppBuilderTests
 	}
 
 	[TestMethod]
+	public void TryApplyOptions_WhenAHandlerParsesAnOutOfRangeNumber_ReportsItAsAUsageError()
+	{
+		// int.Parse throws OverflowException, not FormatException, for a number too big for an int, and
+		// that used to escape as an unhandled exception (#69).
+		TrayAppDefinition app = TrayAppBuilder.Create("demo")
+			.Option(["--count"], "n", "How many.", value => _ = int.Parse(value, System.Globalization.CultureInfo.InvariantCulture))
+			.Build();
+
+		Assert.IsTrue(CommandLineParser.TryParse(["--count", "99999999999"], app.Options, out CommandLineOptions options, out _));
+		Assert.IsFalse(TrayAppBuilder.TryApplyOptions(options, out string error));
+		string expected = Assert.ThrowsExactly<OverflowException>(() => int.Parse("99999999999", System.Globalization.CultureInfo.InvariantCulture)).Message;
+		Assert.AreEqual(expected, error);
+	}
+
+	[TestMethod]
 	public async Task RunAsync_WithHelp_PrintsUsageAndSucceeds()
 	{
 		int exitCode = await TrayAppBuilder.Create("demo")

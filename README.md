@@ -166,8 +166,8 @@ way out. A user flicking a toggle back and forth produces one write, not one per
 ```
 
 They appear in `--help` in registration order, between the tray switches and `--for`. A value handler
-that throws `FormatException` or `ArgumentException` turns its message into the usage error, and the
-tool exits 2 without starting.
+that throws `FormatException`, `ArgumentException` or `OverflowException` (what `int.Parse` throws for a
+number out of range) turns its message into the usage error, and the tool exits 2 without starting.
 
 ### Adding rows to `--status`
 
