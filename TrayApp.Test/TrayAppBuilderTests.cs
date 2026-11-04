@@ -73,6 +73,46 @@ public class TrayAppBuilderTests
 	}
 
 	[TestMethod]
+	public void Toggle_WithAPersistAsKeyAnotherToggleTook_Throws()
+	{
+		// Both toggles would read and write one remembered value, so the next launch restores both to it.
+		TrayAppBuilder builder = TrayAppBuilder.Create("demo")
+			.Toggle("Keep awake", () => false, _ => { }, persistAs: "awake");
+
+		ArgumentException ex = Assert.ThrowsExactly<ArgumentException>(
+			() => builder.Toggle("Keep display on", () => false, _ => { }, persistAs: "awake"));
+
+		Assert.Contains("'awake'", ex.Message, StringComparison.Ordinal);
+		Assert.AreEqual("persistAs", ex.ParamName);
+		Assert.HasCount(1, builder.Build().Toggles);
+	}
+
+	[TestMethod]
+	public void Toggle_WithPersistAsKeysThatDifferOnlyInCase_KeepsBoth()
+	{
+		// The store compares keys ordinally, so these are two remembered values.
+		TrayAppDefinition app = TrayAppBuilder.Create("demo")
+			.Toggle("Keep awake", () => false, _ => { }, persistAs: "awake")
+			.Toggle("Keep display on", () => false, _ => { }, persistAs: "Awake")
+			.Toggle("Not remembered", () => false, _ => { })
+			.Toggle("Not remembered either", () => false, _ => { })
+			.Build();
+
+		Assert.HasCount(4, app.Toggles);
+	}
+
+	[TestMethod]
+	[DataRow("")]
+	[DataRow("   ")]
+	public void Toggle_WithABlankPersistAsKey_Throws(string key)
+	{
+		ArgumentException ex = Assert.ThrowsExactly<ArgumentException>(
+			() => TrayAppBuilder.Create("demo").Toggle("Keep awake", () => false, _ => { }, persistAs: key));
+
+		Assert.AreEqual("persistAs", ex.ParamName);
+	}
+
+	[TestMethod]
 	public void Build_CollectsItemsTogglesAndOptions()
 	{
 		TrayAppDefinition app = TrayAppBuilder.Create("demo")

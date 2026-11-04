@@ -148,7 +148,9 @@ with the matching package references in the tool, not in the library:
 <PackageReference Include="ktsu.Essentials.SerializationProviders.Json" />
 ```
 
-Only toggles given a `persistAs` key are remembered, and only the tray reads them: a command line run
+Only toggles given a `persistAs` key are remembered, and each needs a key of its own: `Toggle` throws
+`ArgumentException` for a blank key or one another toggle already uses, since two toggles sharing a key
+would both be restored to whichever was clicked last. Only the tray reads them: a command line run
 says what it wants, so letting a remembered setting override an argument would be surprising. Within
 the tray, what was typed this time beats what the tray was left set to last time.
 

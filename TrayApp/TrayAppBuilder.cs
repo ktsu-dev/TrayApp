@@ -205,9 +205,14 @@ public sealed class TrayAppBuilder
 	/// <param name="persistAs">
 	/// The name to remember this toggle under between runs, or <see langword="null"/> not to remember it.
 	/// Only meaningful alongside <see cref="Preferences(IPersistenceProvider{string}, string, TimeSpan?)"/>.
+	/// Each remembered toggle needs a key of its own, compared ordinally: two toggles sharing one would read and
+	/// write a single remembered value, and the next launch would restore both to it.
 	/// </param>
 	/// <returns>The builder, for chaining.</returns>
 	/// <exception cref="ArgumentNullException"><paramref name="label"/>, <paramref name="getState"/>, or <paramref name="setState"/> is <see langword="null"/>.</exception>
+	/// <exception cref="ArgumentException">
+	/// <paramref name="persistAs"/> is empty or white space, or another toggle already uses it.
+	/// </exception>
 	public TrayAppBuilder Toggle(
 		string label,
 		Func<bool> getState,
@@ -215,6 +220,19 @@ public sealed class TrayAppBuilder
 		Func<bool>? isEnabled = null,
 		string? persistAs = null)
 	{
+		if (persistAs is not null)
+		{
+			if (string.IsNullOrWhiteSpace(persistAs))
+			{
+				throw new ArgumentException("A preference key cannot be empty or white space.", nameof(persistAs));
+			}
+
+			if (toggles.Any(existing => string.Equals(existing.PreferenceKey, persistAs, StringComparison.Ordinal)))
+			{
+				throw new ArgumentException($"'{persistAs}' is already remembered by another toggle.", nameof(persistAs));
+			}
+		}
+
 		TrayToggleItem toggle = new(label, getState, setState, isEnabled, persistAs);
 		items.Add(toggle);
 		toggles.Add(toggle);
