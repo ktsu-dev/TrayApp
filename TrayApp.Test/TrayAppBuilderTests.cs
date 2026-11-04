@@ -242,6 +242,67 @@ public class TrayAppBuilderTests
 	}
 
 	[TestMethod]
+	[DataRow(false)]
+	[DataRow(true)]
+	public async Task LoadPreferences_WhenTheToggleIsAlreadyInTheRememberedState_DoesNotCallTheSetter(bool state)
+	{
+		InMemoryPersistenceProvider<string> provider = new();
+
+		using (DebouncedPreferenceStore seed = new(provider, "tray", Debounce))
+		{
+			await seed.LoadAsync().ConfigureAwait(false);
+			seed.Set("awake", state);
+			await seed.FlushAsync().ConfigureAwait(false);
+		}
+
+		bool awake = state;
+		int setterCalls = 0;
+
+		// The setter ignores its argument and flips, as the class example's does.
+		TrayAppDefinition app = TrayAppBuilder.Create("demo")
+			.Toggle("Keep awake", () => awake, _ =>
+			{
+				setterCalls++;
+				awake = !awake;
+			}, persistAs: "awake")
+			.Preferences(provider)
+			.Build();
+
+		using DebouncedPreferenceStore store = new(provider, "tray", Debounce);
+
+		Assert.IsNull(TrayAppBuilder.LoadPreferences(app, store));
+		Assert.AreEqual(state, awake);
+		Assert.AreEqual(0, setterCalls);
+	}
+
+	[TestMethod]
+	public async Task LoadPreferences_WhenTheGetterThrows_KeepsGoingAndHandsBackTheMessage()
+	{
+		InMemoryPersistenceProvider<string> provider = new();
+
+		using (DebouncedPreferenceStore seed = new(provider, "tray", Debounce))
+		{
+			await seed.LoadAsync().ConfigureAwait(false);
+			seed.Set("awake", true);
+			seed.Set("display", true);
+			await seed.FlushAsync().ConfigureAwait(false);
+		}
+
+		bool display = false;
+
+		TrayAppDefinition app = TrayAppBuilder.Create("demo")
+			.Toggle("Keep awake", () => throw new InvalidOperationException("no inhibitor here"), _ => { }, persistAs: "awake")
+			.Toggle("Keep display awake", () => display, value => display = value, persistAs: "display")
+			.Preferences(provider)
+			.Build();
+
+		using DebouncedPreferenceStore store = new(provider, "tray", Debounce);
+
+		Assert.AreEqual("no inhibitor here", TrayAppBuilder.LoadPreferences(app, store));
+		Assert.IsTrue(display);
+	}
+
+	[TestMethod]
 	public async Task LoadPreferences_ThenOptions_LetsAnExplicitSwitchWin()
 	{
 		InMemoryPersistenceProvider<string> provider = new();

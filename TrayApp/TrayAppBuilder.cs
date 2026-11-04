@@ -553,7 +553,13 @@ public sealed class TrayAppBuilder
 
 			try
 			{
-				toggle.Set(remembered);
+				// A restore asks for a state, where a click asks for a change, so a toggle already in the
+				// remembered state is left alone: a setter written as a flip (as the class example's is) would
+				// otherwise invert it, and one that takes a resource would take it a second time.
+				if (toggle.ReadState() != remembered)
+				{
+					toggle.Set(remembered);
+				}
 			}
 			catch (Exception ex) when (FatalError.IsNotFatal(ex))
 			{
