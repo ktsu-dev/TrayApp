@@ -47,7 +47,7 @@ public static class StatusReport
 
 		foreach (StatusDetail detail in details)
 		{
-			rows.Add((detail.Label, detail.Value()));
+			rows.Add((detail.Label, Read(detail.Value)));
 		}
 
 		// The value column starts after the longest label, so a long label still has a gap before its value
@@ -68,5 +68,27 @@ public static class StatusReport
 		// Every row above appended a newline; the report is quoted and compared in tests, so it ends where
 		// the last row's text ends.
 		return report.ToString().TrimEnd('\r', '\n');
+	}
+
+	/// <summary>
+	/// Reads one of the tool's status getters for the report.
+	/// </summary>
+	/// <remarks>
+	/// The report exists to explain a tool that cannot do its job, and a getter is likely to throw for the
+	/// same reason (a missing helper, say), so a throwing getter becomes its own row's text rather than
+	/// losing every row the library and the other getters would have printed.
+	/// </remarks>
+	/// <param name="getter">The tool's getter.</param>
+	/// <returns>What the getter returned, or <c>error: </c> and the message of what it threw.</returns>
+	internal static string Read(Func<string> getter)
+	{
+		try
+		{
+			return getter();
+		}
+		catch (Exception ex) when (FatalError.IsNotFatal(ex))
+		{
+			return "error: " + ex.Message;
+		}
 	}
 }

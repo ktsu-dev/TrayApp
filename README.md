@@ -148,7 +148,9 @@ with the matching package references in the tool, not in the library:
 <PackageReference Include="ktsu.Essentials.SerializationProviders.Json" />
 ```
 
-Only toggles given a `persistAs` key are remembered, and only the tray reads them: a command line run
+Only toggles given a `persistAs` key are remembered, and each needs a key of its own: `Toggle` throws
+`ArgumentException` for a blank key or one another toggle already uses, since two toggles sharing a key
+would both be restored to whichever was clicked last. Only the tray reads them: a command line run
 says what it wants, so letting a remembered setting override an argument would be surprising. Within
 the tray, what was typed this time beats what the tray was left set to last time.
 
@@ -164,8 +166,8 @@ way out. A user flicking a toggle back and forth produces one write, not one per
 ```
 
 They appear in `--help` in registration order, between the tray switches and `--for`. A value handler
-that throws `FormatException` or `ArgumentException` turns its message into the usage error, and the
-tool exits 2 without starting.
+that throws `FormatException`, `ArgumentException` or `OverflowException` (what `int.Parse` throws for a
+number out of range) turns its message into the usage error, and the tool exits 2 without starting.
 
 ### Adding rows to `--status`
 

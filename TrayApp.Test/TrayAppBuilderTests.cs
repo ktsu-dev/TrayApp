@@ -4,6 +4,7 @@ namespace ktsu.TrayApp.Test;
 
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Threading.Tasks;
 using ktsu.Essentials.PersistenceProviders.InMemory;
 using ktsu.TrayApp;
@@ -70,6 +71,46 @@ public class TrayAppBuilderTests
 
 		Assert.Contains("'-d'", ex.Message, StringComparison.Ordinal);
 		Assert.AreEqual(1, builder.Build().Options.Count);
+	}
+
+	[TestMethod]
+	public void Toggle_WithAPersistAsKeyAnotherToggleTook_Throws()
+	{
+		// Both toggles would read and write one remembered value, so the next launch restores both to it.
+		TrayAppBuilder builder = TrayAppBuilder.Create("demo")
+			.Toggle("Keep awake", () => false, _ => { }, persistAs: "awake");
+
+		ArgumentException ex = Assert.ThrowsExactly<ArgumentException>(
+			() => builder.Toggle("Keep display on", () => false, _ => { }, persistAs: "awake"));
+
+		Assert.Contains("'awake'", ex.Message, StringComparison.Ordinal);
+		Assert.AreEqual("persistAs", ex.ParamName);
+		Assert.HasCount(1, builder.Build().Toggles);
+	}
+
+	[TestMethod]
+	public void Toggle_WithPersistAsKeysThatDifferOnlyInCase_KeepsBoth()
+	{
+		// The store compares keys ordinally, so these are two remembered values.
+		TrayAppDefinition app = TrayAppBuilder.Create("demo")
+			.Toggle("Keep awake", () => false, _ => { }, persistAs: "awake")
+			.Toggle("Keep display on", () => false, _ => { }, persistAs: "Awake")
+			.Toggle("Not remembered", () => false, _ => { })
+			.Toggle("Not remembered either", () => false, _ => { })
+			.Build();
+
+		Assert.HasCount(4, app.Toggles);
+	}
+
+	[TestMethod]
+	[DataRow("")]
+	[DataRow("   ")]
+	public void Toggle_WithABlankPersistAsKey_Throws(string key)
+	{
+		ArgumentException ex = Assert.ThrowsExactly<ArgumentException>(
+			() => TrayAppBuilder.Create("demo").Toggle("Keep awake", () => false, _ => { }, persistAs: key));
+
+		Assert.AreEqual("persistAs", ex.ParamName);
 	}
 
 	[TestMethod]
@@ -201,6 +242,67 @@ public class TrayAppBuilderTests
 	}
 
 	[TestMethod]
+	[DataRow(false)]
+	[DataRow(true)]
+	public async Task LoadPreferences_WhenTheToggleIsAlreadyInTheRememberedState_DoesNotCallTheSetter(bool state)
+	{
+		InMemoryPersistenceProvider<string> provider = new();
+
+		using (DebouncedPreferenceStore seed = new(provider, "tray", Debounce))
+		{
+			await seed.LoadAsync().ConfigureAwait(false);
+			seed.Set("awake", state);
+			await seed.FlushAsync().ConfigureAwait(false);
+		}
+
+		bool awake = state;
+		int setterCalls = 0;
+
+		// The setter ignores its argument and flips, as the class example's does.
+		TrayAppDefinition app = TrayAppBuilder.Create("demo")
+			.Toggle("Keep awake", () => awake, _ =>
+			{
+				setterCalls++;
+				awake = !awake;
+			}, persistAs: "awake")
+			.Preferences(provider)
+			.Build();
+
+		using DebouncedPreferenceStore store = new(provider, "tray", Debounce);
+
+		Assert.IsNull(TrayAppBuilder.LoadPreferences(app, store));
+		Assert.AreEqual(state, awake);
+		Assert.AreEqual(0, setterCalls);
+	}
+
+	[TestMethod]
+	public async Task LoadPreferences_WhenTheGetterThrows_KeepsGoingAndHandsBackTheMessage()
+	{
+		InMemoryPersistenceProvider<string> provider = new();
+
+		using (DebouncedPreferenceStore seed = new(provider, "tray", Debounce))
+		{
+			await seed.LoadAsync().ConfigureAwait(false);
+			seed.Set("awake", true);
+			seed.Set("display", true);
+			await seed.FlushAsync().ConfigureAwait(false);
+		}
+
+		bool display = false;
+
+		TrayAppDefinition app = TrayAppBuilder.Create("demo")
+			.Toggle("Keep awake", () => throw new InvalidOperationException("no inhibitor here"), _ => { }, persistAs: "awake")
+			.Toggle("Keep display awake", () => display, value => display = value, persistAs: "display")
+			.Preferences(provider)
+			.Build();
+
+		using DebouncedPreferenceStore store = new(provider, "tray", Debounce);
+
+		Assert.AreEqual("no inhibitor here", TrayAppBuilder.LoadPreferences(app, store));
+		Assert.IsTrue(display);
+	}
+
+	[TestMethod]
 	public async Task LoadPreferences_ThenOptions_LetsAnExplicitSwitchWin()
 	{
 		InMemoryPersistenceProvider<string> provider = new();
@@ -304,6 +406,21 @@ public class TrayAppBuilderTests
 	}
 
 	[TestMethod]
+	public void TryApplyOptions_WhenAHandlerParsesAnOutOfRangeNumber_ReportsItAsAUsageError()
+	{
+		// int.Parse throws OverflowException, not FormatException, for a number too big for an int, and
+		// that used to escape as an unhandled exception (#69).
+		TrayAppDefinition app = TrayAppBuilder.Create("demo")
+			.Option(["--count"], "n", "How many.", value => _ = int.Parse(value, System.Globalization.CultureInfo.InvariantCulture))
+			.Build();
+
+		Assert.IsTrue(CommandLineParser.TryParse(["--count", "99999999999"], app.Options, out CommandLineOptions options, out _));
+		Assert.IsFalse(TrayAppBuilder.TryApplyOptions(options, out string error));
+		string expected = Assert.ThrowsExactly<OverflowException>(() => int.Parse("99999999999", System.Globalization.CultureInfo.InvariantCulture)).Message;
+		Assert.AreEqual(expected, error);
+	}
+
+	[TestMethod]
 	public async Task RunAsync_WithHelp_PrintsUsageAndSucceeds()
 	{
 		int exitCode = await TrayAppBuilder.Create("demo")
@@ -349,6 +466,36 @@ public class TrayAppBuilderTests
 
 		Assert.AreEqual(0, exitCode);
 		Assert.IsFalse(started);
+	}
+
+	[TestMethod]
+	[DoNotParallelize]
+	public async Task RunAsync_WithStatusAndThrowingGetters_PrintsEveryRowAndExitsZero()
+	{
+		TextWriter original = Console.Out;
+		using StringWriter output = new();
+		Console.SetOut(output);
+		int exitCode;
+		try
+		{
+			exitCode = await TrayAppBuilder.Create("demo")
+				.Status(() => throw new InvalidOperationException("state unknown"))
+				.Status("Inhibitor", () => throw new InvalidOperationException("systemd-inhibit was not found on PATH"))
+				.Status("Helper", () => "present")
+				.RunAsync(["--no-tray", "--status"])
+				.ConfigureAwait(false);
+		}
+		finally
+		{
+			Console.SetOut(original);
+		}
+
+		string report = output.ToString();
+		Assert.AreEqual(0, exitCode);
+		Assert.Contains("Platform:", report, StringComparison.Ordinal);
+		Assert.Contains("State:         error: state unknown", report, StringComparison.Ordinal);
+		Assert.Contains("Inhibitor:     error: systemd-inhibit was not found on PATH", report, StringComparison.Ordinal);
+		Assert.Contains("Helper:", report, StringComparison.Ordinal);
 	}
 
 	[TestMethod]

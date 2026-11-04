@@ -57,19 +57,17 @@ internal sealed class ShutdownSignals : IDisposable
 	/// <summary>
 	/// Asks the tray to shut down, if there is one yet.
 	/// </summary>
+	/// <remarks>
+	/// Only the signal that posts the shutdown is taken. A shutdown that cannot finish - the UI thread blocked in
+	/// the tool's code, or a hung stop action - would otherwise leave every later Ctrl+C, <c>kill</c> or closed
+	/// terminal cancelled too, and nothing short of <c>SIGKILL</c> would end the process. So, as is usual for a
+	/// command-line tool, a repeated signal gets its default handling and ends the process.
+	/// </remarks>
 	/// <returns>
-	/// <see langword="true"/> when a tray took the request, so the signal's default handling should be cancelled.
+	/// <see langword="true"/> when this request posted the tray's shutdown, so the signal's default handling should
+	/// be cancelled; <see langword="false"/> when there is no tray yet or a shutdown was already posted.
 	/// </returns>
-	internal bool RequestShutdown()
-	{
-		if (host() is not TrayApplication running)
-		{
-			return false;
-		}
-
-		_ = running.RequestShutdown();
-		return true;
-	}
+	internal bool RequestShutdown() => host() is TrayApplication running && running.RequestShutdown();
 
 	private void OnCancelKeyPress(object? sender, ConsoleCancelEventArgs eventArgs) => eventArgs.Cancel = RequestShutdown();
 }

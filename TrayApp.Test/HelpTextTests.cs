@@ -49,6 +49,44 @@ public class HelpTextTests
 	}
 
 	[TestMethod]
+	[DataRow("duration", DisplayName = "23-character row, which fits the default column")]
+	[DataRow("explanation", DisplayName = "26-character row, which widens the column")]
+	[DataRow("a-much-longer-name", DisplayName = "33-character row, which wraps")]
+	public void Usage_LeavesAGapAfterTheLongestOption(string valueName)
+	{
+		AppOption reason = AppOption.Value(["-r", "--reason"], valueName, "Why it is held.", _ => { });
+
+		string usage = HelpText.Usage("demo", summary: null, [reason]);
+
+		string columns = $"-r, --reason <{valueName}>";
+		string row = FindLine(usage, columns);
+		string rest = row[(row.IndexOf(columns, StringComparison.Ordinal) + columns.Length)..];
+
+		if (rest.Length == 0)
+		{
+			// Wrapped: the description is on the next line, at the widest description column.
+			string[] lines = usage.Split(Environment.NewLine);
+			string next = lines[Array.IndexOf(lines, row) + 1];
+			Assert.AreEqual(new string(' ', 34) + "Why it is held.", next);
+		}
+		else
+		{
+			Assert.StartsWith("  ", rest, StringComparison.Ordinal);
+			Assert.AreEqual("Why it is held.", rest.TrimStart());
+		}
+	}
+
+	[TestMethod]
+	public void Usage_KeepsTheBuiltInRowsAtTheDefaultColumn()
+	{
+		string usage = HelpText.Usage("demo", summary: null, NoOptions);
+
+		Assert.AreEqual("  -f, --for <duration>   Stop and exit after a duration: 45s, 90m, 2h, 1h30m.", FindLine(usage, "--for <duration>"));
+		Assert.AreEqual("                         A bare number means minutes.", FindLine(usage, "A bare number"));
+		Assert.AreEqual("  -h, --help             Show this help, then exit.", FindLine(usage, "--help"));
+	}
+
+	[TestMethod]
 	public void Version_UsesTheAssemblyItIsGiven()
 	{
 		string version = HelpText.Version("demo", typeof(HelpTextTests).Assembly);
@@ -57,5 +95,19 @@ public class HelpTextTests
 
 		// The SDK appends the source revision after a '+', which is noise in a version line.
 		Assert.DoesNotContain("+", version, StringComparison.Ordinal);
+	}
+
+	private static string FindLine(string usage, string contains)
+	{
+		foreach (string line in usage.Split(Environment.NewLine))
+		{
+			if (line.Contains(contains, StringComparison.Ordinal))
+			{
+				return line;
+			}
+		}
+
+		Assert.Fail($"No line contains '{contains}':{Environment.NewLine}{usage}");
+		return string.Empty;
 	}
 }
