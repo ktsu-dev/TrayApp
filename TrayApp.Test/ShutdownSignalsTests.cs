@@ -101,14 +101,47 @@ public class ShutdownSignalsTests
 	}
 
 	[TestMethod]
-	public void ARepeatedSignal_IsStillTakenButPostsNoSecondShutdown()
+	public void ARepeatedSignal_IsLeftToEndTheProcessAndPostsNoSecondShutdown()
 	{
 		using TrayApplication host = Host();
 		using ShutdownSignals signals = new(() => host);
 
 		Assert.IsTrue(signals.RequestShutdown());
-		Assert.IsTrue(signals.RequestShutdown());
+
+		// The first signal's shutdown may never finish (a blocked UI thread, a hung stop action), so a second
+		// one must still be able to end the process.
+		Assert.IsFalse(signals.RequestShutdown());
 		Assert.IsFalse(host.RequestShutdown());
+	}
+
+	[TestMethod]
+	public void ARepeatedTermination_IsNotCancelled()
+	{
+		using TrayApplication host = Host();
+		using ShutdownSignals signals = new(() => host);
+		PosixSignalContext first = new(PosixSignal.SIGTERM);
+		PosixSignalContext second = new(PosixSignal.SIGTERM);
+
+		signals.OnTermination(first);
+		signals.OnTermination(second);
+
+		Assert.IsTrue(first.Cancel);
+		Assert.IsFalse(second.Cancel);
+	}
+
+	[TestMethod]
+	public void ASignalAfterQuit_IsNotCancelled()
+	{
+		using TrayApplication host = Host();
+		using ShutdownSignals signals = new(() => host);
+
+		// The Quit item (or anything else) already posted the shutdown.
+		Assert.IsTrue(host.RequestShutdown());
+
+		PosixSignalContext context = new(PosixSignal.SIGHUP);
+		signals.OnTermination(context);
+
+		Assert.IsFalse(context.Cancel);
 	}
 
 	[TestMethod]
