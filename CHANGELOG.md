@@ -2,6 +2,7 @@
 
 Changes since v1.5.0:
 
+- [patch] Keep a gap after a long label in --status and align every value (#76) (matt-edmondson)
 - Report an out-of-range number for an option as a usage error [patch] (#70) (matt-edmondson)
 - Leave a later toggle alone when the tray icon's first toggle is disabled [patch] (#68) (matt-edmondson)
 - Let a repeated Ctrl+C, SIGTERM or SIGHUP end a run whose shutdown hangs [patch] (#66) (matt-edmondson)
