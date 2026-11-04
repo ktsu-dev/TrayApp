@@ -52,7 +52,10 @@ public static class DurationParser
 	/// </summary>
 	/// <param name="text">The text to read.</param>
 	/// <param name="duration">Receives the duration when parsing succeeds.</param>
-	/// <returns><see langword="true"/> when <paramref name="text"/> is a positive duration.</returns>
+	/// <returns>
+	/// <see langword="true"/> when <paramref name="text"/> is a duration of at least one tick. A duration too long
+	/// for <see cref="TimeSpan"/> to hold is returned as <see cref="TimeSpan.MaxValue"/>.
+	/// </returns>
 	internal static bool TryParseAnyLength(string? text, out TimeSpan duration)
 	{
 		duration = TimeSpan.Zero;
@@ -78,12 +81,29 @@ public static class DurationParser
 			sawAnyPart = true;
 		}
 
-		if (!sawAnyPart || totalSeconds <= 0 || totalSeconds > TimeSpan.MaxValue.TotalSeconds)
+		if (!sawAnyPart || totalSeconds <= 0)
 		{
 			return false;
 		}
 
-		duration = TimeSpan.FromSeconds(totalSeconds);
+		// A value TimeSpan cannot hold is still a duration, just one too long for anything to wait out, so it
+		// is reported as the longest TimeSpan and the caller's upper bound turns it away as too long.
+		if (totalSeconds >= TimeSpan.MaxValue.TotalSeconds)
+		{
+			duration = TimeSpan.MaxValue;
+			return true;
+		}
+
+		TimeSpan converted = TimeSpan.FromSeconds(totalSeconds);
+
+		// The check above ran on the double: a value under one tick passes it and then rounds to zero, which
+		// would start the tool and stop it in the same moment.
+		if (converted <= TimeSpan.Zero)
+		{
+			return false;
+		}
+
+		duration = converted;
 		return true;
 	}
 

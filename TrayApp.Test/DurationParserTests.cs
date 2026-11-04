@@ -64,6 +64,8 @@ public class DurationParserTests
 	[DataRow("5x")]
 	[DataRow("m5")]
 	[DataRow("1e9h")]
+	[DataRow("0.00000001s")]
+	[DataRow("0.00000004s")]
 	public void TryParse_WithAnInvalidDuration_ReturnsFalse(string? text)
 	{
 		Assert.IsFalse(DurationParser.TryParse(text, out TimeSpan duration));
@@ -81,12 +83,34 @@ public class DurationParserTests
 	[TestMethod]
 	[DataRow("25d")]
 	[DataRow("24d21h")]
+	[DataRow("20000000d")]
+	[DataRow("99999999999999999999999999999999999999999999999999999999999999999999h")]
 	public void TryParse_LongerThanATimerCanWait_ReturnsFalse(string text)
 	{
 		// ManualResetEventSlim.Wait and the tray's timer both throw past int.MaxValue milliseconds, about
 		// 24.8 days, so a longer duration would start the tool and then crash it.
 		Assert.IsFalse(DurationParser.TryParse(text, out TimeSpan duration));
 		Assert.AreEqual(TimeSpan.Zero, duration);
+	}
+
+	[TestMethod]
+	[DataRow("0.00000001s")]
+	[DataRow("0.00000004s")]
+	public void TryParseAnyLength_WithADurationThatRoundsToZero_ReturnsFalse(string text)
+	{
+		// The value is positive, but under one tick, so it would be a zero-length run.
+		Assert.IsFalse(DurationParser.TryParseAnyLength(text, out TimeSpan duration));
+		Assert.AreEqual(TimeSpan.Zero, duration);
+	}
+
+	[TestMethod]
+	[DataRow("20000000d")]
+	[DataRow("99999999999999999999999999999999999999999999999999999999999999999999h")]
+	public void TryParseAnyLength_WithADurationBeyondTimeSpan_ReturnsTheLongestTimeSpan(string text)
+	{
+		// It is a duration, just one too long to hold, so the caller reports it as too long.
+		Assert.IsTrue(DurationParser.TryParseAnyLength(text, out TimeSpan duration));
+		Assert.AreEqual(TimeSpan.MaxValue, duration);
 	}
 
 	[TestMethod]
