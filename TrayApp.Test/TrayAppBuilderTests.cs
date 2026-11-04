@@ -4,6 +4,7 @@ namespace ktsu.TrayApp.Test;
 
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Threading.Tasks;
 using ktsu.Essentials.PersistenceProviders.InMemory;
 using ktsu.TrayApp;
@@ -389,6 +390,36 @@ public class TrayAppBuilderTests
 
 		Assert.AreEqual(0, exitCode);
 		Assert.IsFalse(started);
+	}
+
+	[TestMethod]
+	[DoNotParallelize]
+	public async Task RunAsync_WithStatusAndThrowingGetters_PrintsEveryRowAndExitsZero()
+	{
+		TextWriter original = Console.Out;
+		using StringWriter output = new();
+		Console.SetOut(output);
+		int exitCode;
+		try
+		{
+			exitCode = await TrayAppBuilder.Create("demo")
+				.Status(() => throw new InvalidOperationException("state unknown"))
+				.Status("Inhibitor", () => throw new InvalidOperationException("systemd-inhibit was not found on PATH"))
+				.Status("Helper", () => "present")
+				.RunAsync(["--no-tray", "--status"])
+				.ConfigureAwait(false);
+		}
+		finally
+		{
+			Console.SetOut(original);
+		}
+
+		string report = output.ToString();
+		Assert.AreEqual(0, exitCode);
+		Assert.Contains("Platform:", report, StringComparison.Ordinal);
+		Assert.Contains("State:         error: state unknown", report, StringComparison.Ordinal);
+		Assert.Contains("Inhibitor:     error: systemd-inhibit was not found on PATH", report, StringComparison.Ordinal);
+		Assert.Contains("Helper:", report, StringComparison.Ordinal);
 	}
 
 	[TestMethod]
