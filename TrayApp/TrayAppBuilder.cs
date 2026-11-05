@@ -529,6 +529,13 @@ public sealed class TrayAppBuilder
 	/// end the process before the tray appeared, which is the one thing this library exists to prevent: the
 	/// remaining toggles are still restored, and the tray still comes up saying why.
 	/// </para>
+	/// <para>
+	/// A toggle whose <c>isEnabled</c> predicate is false is not restored, just as a click on it does nothing.
+	/// Only clicked toggles are saved, so a dependent toggle can be remembered as on after its parent was
+	/// turned off, and setting it would run its setter in a state the menu forbids. The predicate is read
+	/// live, in registration order, so a parent restored first can still enable its dependants. The skipped
+	/// toggle's remembered value stays in the store, so it comes back on a later run once its parent is on.
+	/// </para>
 	/// </remarks>
 	[SuppressMessage(
 		"Reliability",
@@ -556,7 +563,7 @@ public sealed class TrayAppBuilder
 				// A restore asks for a state, where a click asks for a change, so a toggle already in the
 				// remembered state is left alone: a setter written as a flip (as the class example's is) would
 				// otherwise invert it, and one that takes a resource would take it a second time.
-				if (toggle.ReadState() != remembered)
+				if (toggle.ReadEnabled() && toggle.ReadState() != remembered)
 				{
 					toggle.Set(remembered);
 				}
