@@ -94,9 +94,14 @@ internal static class ConsoleRunner
 			? string.Create(CultureInfo.InvariantCulture, $", stopping after {window:g}")
 			: string.Empty;
 
+		// The getter is the tool's code, and it is most likely to throw for the same reason the tool cannot
+		// work - a missing helper, say - which is also when the tray falls back to this mode. It is read the
+		// way --status reads it, so it becomes the line's text rather than an unhandled exception.
+		string state = app.Status is Func<string> status ? StatusReport.Read(status) : app.Describe();
+
 		return string.Create(
 			CultureInfo.InvariantCulture,
-			$"{app.Name}: {app.Describe()}{until}. Press Ctrl+C to stop.");
+			$"{app.Name}: {state}{until}. Press Ctrl+C to stop.");
 	}
 
 	/// <summary>
