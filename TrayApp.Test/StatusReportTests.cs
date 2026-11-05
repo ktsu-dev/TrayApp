@@ -102,7 +102,8 @@ public class StatusReportTests
 				new StatusDetail("Helper", () => throw new InvalidOperationException("systemd-inhibit not found.\nInstall systemd.")),
 			]);
 
-		string[] lines = report.Split('\n');
+		// Rows end in Environment.NewLine, so only a "\r" from a value's own CRLF is left after this.
+		string[] lines = report.Replace(Environment.NewLine, "\n", StringComparison.Ordinal).Split('\n');
 		int column = lines[1].IndexOf(':', StringComparison.Ordinal) + 1;
 		while (lines[1][column] == ' ')
 		{
@@ -119,7 +120,7 @@ public class StatusReportTests
 
 		foreach (string line in lines)
 		{
-			Assert.DoesNotEndWith("\r", line, StringComparison.Ordinal);
+			Assert.DoesNotContain("\r", line, StringComparison.Ordinal);
 		}
 
 		Assert.DoesNotEndWith("\n", report, StringComparison.Ordinal);
