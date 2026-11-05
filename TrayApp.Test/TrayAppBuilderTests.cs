@@ -244,6 +244,45 @@ public class TrayAppBuilderTests
 	[TestMethod]
 	[DataRow(false)]
 	[DataRow(true)]
+	public async Task LoadPreferences_DoesNotRestoreAToggleItsParentLeavesDisabled(bool parentRemembered)
+	{
+		InMemoryPersistenceProvider<string> provider = new();
+
+		using (DebouncedPreferenceStore seed = new(provider, "tray", Debounce))
+		{
+			await seed.LoadAsync().ConfigureAwait(false);
+			seed.Set("awake", parentRemembered);
+			seed.Set("display", true);
+			await seed.FlushAsync().ConfigureAwait(false);
+		}
+
+		// The parent starts in the opposite state, so restoring it is what decides whether the child is enabled.
+		bool awake = !parentRemembered;
+		bool display = false;
+		int displaySetterCalls = 0;
+
+		TrayAppDefinition app = TrayAppBuilder.Create("demo")
+			.Toggle("Keep awake", () => awake, value => awake = value, persistAs: "awake")
+			.Toggle("Keep display awake too", () => display, value =>
+			{
+				displaySetterCalls++;
+				display = value;
+			}, isEnabled: () => awake, persistAs: "display")
+			.Preferences(provider)
+			.Build();
+
+		using DebouncedPreferenceStore store = new(provider, "tray", Debounce);
+
+		Assert.IsNull(TrayAppBuilder.LoadPreferences(app, store));
+		Assert.AreEqual(parentRemembered, awake);
+		Assert.AreEqual(parentRemembered, display);
+		Assert.AreEqual(parentRemembered ? 1 : 0, displaySetterCalls);
+		Assert.IsTrue(store.Get("display") is true, "Expected the skipped toggle's remembered value to stay in the store.");
+	}
+
+	[TestMethod]
+	[DataRow(false)]
+	[DataRow(true)]
 	public async Task LoadPreferences_WhenTheToggleIsAlreadyInTheRememberedState_DoesNotCallTheSetter(bool state)
 	{
 		InMemoryPersistenceProvider<string> provider = new();
