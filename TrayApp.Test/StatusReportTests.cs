@@ -92,6 +92,40 @@ public class StatusReportTests
 	}
 
 	[TestMethod]
+	public void Build_WithMultiLineValues_IndentsEveryContinuationLineToTheValueColumn()
+	{
+		string report = StatusReport.Build(
+			"demo",
+			"Holding a sleep inhibitor\nsince 10:02",
+			[
+				new StatusDetail("Inhibitors", () => "systemd-inhibit\r\ncaffeinate"),
+				new StatusDetail("Helper", () => throw new InvalidOperationException("systemd-inhibit not found.\nInstall systemd.")),
+			]);
+
+		string[] lines = report.Split('\n');
+		int column = lines[1].IndexOf(':', StringComparison.Ordinal) + 1;
+		while (lines[1][column] == ' ')
+		{
+			column++;
+		}
+
+		string padding = new(' ', column);
+		CollectionAssert.Contains(lines, "State:".PadRight(column) + "Holding a sleep inhibitor");
+		CollectionAssert.Contains(lines, padding + "since 10:02");
+		CollectionAssert.Contains(lines, "Inhibitors:".PadRight(column) + "systemd-inhibit");
+		CollectionAssert.Contains(lines, padding + "caffeinate");
+		CollectionAssert.Contains(lines, "Helper:".PadRight(column) + "error: systemd-inhibit not found.");
+		CollectionAssert.Contains(lines, padding + "Install systemd.");
+
+		foreach (string line in lines)
+		{
+			Assert.DoesNotEndWith("\r", line, StringComparison.Ordinal);
+		}
+
+		Assert.DoesNotEndWith("\n", report, StringComparison.Ordinal);
+	}
+
+	[TestMethod]
 	public void Read_WithAThrowingGetter_ReturnsTheError() =>
 		Assert.AreEqual("error: boom", StatusReport.Read(() => throw new InvalidOperationException("boom")));
 
