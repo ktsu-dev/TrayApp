@@ -35,7 +35,8 @@ asked it to stop. The behaviours that cost the most to rediscover are listed und
 - **Signals handled**: Ctrl+C and `SIGTERM` both release through the tool's own stop action, rather than
   leaving cleanup to the operating system.
 - **Standard flags**: `--tray`, `--no-tray`, `--for <duration>`, `--status`, `--help`, `--version`, plus
-  whatever flags the tool registers, all in one generated usage block.
+  whatever flags the tool registers, all in one generated usage block. A long option's value can be
+  given separately or attached with `=`, as in `--for 5s` or `--for=5s`.
 - **Duration parsing that matches what people type**: `45s`, `90m`, `2h`, `1h30m`, and a bare `90` for
   ninety minutes.
 - **Optional persistence**: remembered toggle states over any `ktsu.Essentials`

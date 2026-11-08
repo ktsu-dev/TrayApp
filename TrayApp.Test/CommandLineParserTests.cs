@@ -247,4 +247,77 @@ public class CommandLineParserTests
 		Assert.AreSame(second, options.Matches[0].Option);
 		Assert.AreSame(first, options.Matches[1].Option);
 	}
+
+	[TestMethod]
+	public void TryParse_WithAnAttachedDuration_ParsesIt()
+	{
+		Assert.IsTrue(CommandLineParser.TryParse(["--for=5s"], NoOptions, out CommandLineOptions options, out string error), error);
+		Assert.AreEqual(TimeSpan.FromSeconds(5), options.Duration);
+	}
+
+	[TestMethod]
+	public void TryParse_WithAnAttachedDurationLeftEmpty_FailsAsMissing()
+	{
+		Assert.IsFalse(CommandLineParser.TryParse(["--for="], NoOptions, out _, out string error));
+		Assert.AreEqual("'--for' needs a value.", error);
+	}
+
+	[TestMethod]
+	public void TryParse_WithAnAttachedUnreadableDuration_FailsAsTheSeparateFormDoes()
+	{
+		Assert.IsFalse(CommandLineParser.TryParse(["--for=soon"], NoOptions, out _, out string error));
+		Assert.AreEqual("'soon' is not a duration. Try 45s, 90m, 2h, or 1h30m.", error);
+	}
+
+	[TestMethod]
+	[DataRow("text", "text")]
+	[DataRow("--display", "--display")]
+	[DataRow("a=b", "a=b")]
+	public void TryParse_WithAnAttachedApplicationValue_TakesEverythingAfterTheFirstEquals(string attached, string expected)
+	{
+		AppOption reason = AppOption.Value(["-r", "--reason"], "text", "Why.", _ => { });
+		AppOption display = AppOption.Flag(["-d", "--display"], "Display.", () => { });
+
+		Assert.IsTrue(CommandLineParser.TryParse([$"--reason={attached}"], [reason, display], out CommandLineOptions options, out string error), error);
+		Assert.AreEqual(1, options.Matches.Count);
+		Assert.AreSame(reason, options.Matches[0].Option);
+		Assert.AreEqual(expected, options.Matches[0].Value);
+	}
+
+	[TestMethod]
+	public void TryParse_WithAnAttachedApplicationValueLeftEmpty_FailsAsMissing()
+	{
+		AppOption reason = AppOption.Value(["-r", "--reason"], "text", "Why.", _ => { });
+
+		Assert.IsFalse(CommandLineParser.TryParse(["--reason="], [reason], out _, out string error));
+		Assert.AreEqual("'--reason' needs a value.", error);
+	}
+
+	[TestMethod]
+	[DataRow("--tray=yes", "--tray")]
+	[DataRow("--status=1", "--status")]
+	[DataRow("--display=on", "--display")]
+	public void TryParse_WithAValueAttachedToASwitch_Fails(string argument, string name)
+	{
+		AppOption display = AppOption.Flag(["-d", "--display"], "Display.", () => { });
+
+		Assert.IsFalse(CommandLineParser.TryParse([argument], [display], out _, out string error));
+		Assert.AreEqual($"'{name}' does not take a value.", error);
+	}
+
+	[TestMethod]
+	public void TryParse_WithAnAttachedValueOnAnUnknownName_ReportsTheName()
+	{
+		Assert.IsFalse(CommandLineParser.TryParse(["--nope=1"], NoOptions, out _, out string error));
+		Assert.AreEqual("Unknown option '--nope'. Run with --help for the list.", error);
+	}
+
+	[TestMethod]
+	public void TryParse_WithAnApplicationAliasThatHoldsAnEquals_ReadsItAsTyped()
+	{
+		AppOption odd = AppOption.Flag(["--mode=fast"], "Fast.", () => { });
+
+		Assert.IsTrue(CommandLineParser.TryParse(["--mode=fast"], [odd], out CommandLineOptions options, out string error), error);
+		Assert.AreSame(odd, options.Matches[0].Option);
+	}
 }
