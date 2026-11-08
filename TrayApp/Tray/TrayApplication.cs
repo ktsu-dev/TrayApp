@@ -195,7 +195,7 @@ internal sealed class TrayApplication : Application, IDisposable
 				continue;
 			}
 
-			NativeMenuItem native = new(item.Header);
+			NativeMenuItem native = new(AsMenuText(item.Header));
 
 			if (item is TrayToggleItem)
 			{
@@ -339,13 +339,28 @@ internal sealed class TrayApplication : Application, IDisposable
 		Dispatcher.UIThread.InvokeShutdown();
 	}
 
+	/// <summary>
+	/// Escapes text for a native menu item, so it is shown exactly as written.
+	/// </summary>
+	/// <remarks>
+	/// Both menu backends read a single underscore as an access-key marker and do not display it: the
+	/// dbusmenu <c>label</c> on Linux, and the <c>AccessText</c> a <c>MenuItem</c> header is drawn with on
+	/// Windows. A doubled underscore is shown as one. Every header here is text to show rather than a
+	/// mnemonic - the tool's labels, its live status, and error lines that often name a path such as
+	/// <c>my_tool/tray.json</c> - so every underscore is doubled. The tooltip is plain text and is not
+	/// escaped.
+	/// </remarks>
+	/// <param name="header">The text to show.</param>
+	/// <returns>The text with each underscore doubled.</returns>
+	internal static string AsMenuText(string header) => header.Replace("_", "__", StringComparison.Ordinal);
+
 	private void RefreshMenu()
 	{
 		menu.Refresh();
 
 		foreach ((TrayMenuItem model, NativeMenuItem native) in entries)
 		{
-			native.Header = model.Header;
+			native.Header = AsMenuText(model.Header);
 			native.IsEnabled = model.IsEnabled;
 
 			if (model is TrayToggleItem toggle)
