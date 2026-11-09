@@ -491,7 +491,23 @@ public sealed class TrayAppBuilder
 		return ExitUsage;
 	}
 
-	private static async Task<int> FinishAsync(int exitCode, DebouncedPreferenceStore? store)
+	/// <summary>
+	/// Writes whatever the run left unsaved, then hands back the run's exit code.
+	/// </summary>
+	/// <param name="exitCode">The run's exit code.</param>
+	/// <param name="store">The run's store, or <see langword="null"/> when it remembers nothing.</param>
+	/// <returns><paramref name="exitCode"/>, whether or not the write succeeded.</returns>
+	/// <remarks>
+	/// A provider that cannot write - a read-only home directory, a full disk - has already been reported by
+	/// the debounced write, which left the store dirty so that this flush tries again. When it fails a second
+	/// time the run has still done what the user asked, so the failure is reported and the exit code stands:
+	/// turning a clean Quit into an unhandled exception is what the debounced write is written to avoid.
+	/// </remarks>
+	[SuppressMessage(
+		"Design",
+		"CA1031:Do not catch general exception types",
+		Justification = "The provider belongs to the consuming tool, so there is no exception type to filter on beyond the fatal ones FatalError excludes, and a write that fails on the way out must not turn a run that worked into a crash.")]
+	internal static async Task<int> FinishAsync(int exitCode, DebouncedPreferenceStore? store)
 	{
 		if (store is null)
 		{
@@ -501,6 +517,10 @@ public sealed class TrayAppBuilder
 		try
 		{
 			await store.FlushAsync().ConfigureAwait(false);
+		}
+		catch (Exception ex) when (FatalError.IsNotFatal(ex))
+		{
+			await Console.Error.WriteLineAsync($"Could not save preferences: {ex.Message}").ConfigureAwait(false);
 		}
 		finally
 		{
@@ -529,6 +549,10 @@ public sealed class TrayAppBuilder
 	/// end the process before the tray appeared, which is the one thing this library exists to prevent: the
 	/// remaining toggles are still restored, and the tray still comes up saying why.
 	/// </para>
+	/// <para>
+	/// The load itself is caught for the same reason. A file that cannot be read leaves every toggle as the
+	/// tool starts it, and its message goes to the status line in place of a restore error.
+	/// </para>
 	/// </remarks>
 	[SuppressMessage(
 		"Reliability",
@@ -537,10 +561,22 @@ public sealed class TrayAppBuilder
 	[SuppressMessage(
 		"Design",
 		"CA1031:Do not catch general exception types",
-		Justification = "The setter belongs to the consuming tool, so there is no exception type to filter on beyond the fatal ones FatalError excludes, and a refusal here must not stop the tray from coming up.")]
+		Justification = "The setter and the provider belong to the consuming tool, so there is no exception type to filter on beyond the fatal ones FatalError excludes, and a refusal here must not stop the tray from coming up.")]
 	internal static string? LoadPreferences(TrayAppDefinition app, DebouncedPreferenceStore store)
 	{
-		store.LoadAsync().GetAwaiter().GetResult();
+		try
+		{
+			store.LoadAsync().GetAwaiter().GetResult();
+		}
+		catch (Exception ex) when (FatalError.IsNotFatal(ex))
+		{
+			// A corrupt or hand-edited file, or no file yet in a directory that cannot be written to (the load
+			// creates one when there is none). Either way the tool can still run, with every toggle as it
+			// starts: the store is left empty, so there is nothing to restore.
+			string message = $"Could not load preferences: {ex.Message}";
+			Console.Error.WriteLine($"{app.Name}: {message}");
+			return message;
+		}
 
 		string? firstError = null;
 
