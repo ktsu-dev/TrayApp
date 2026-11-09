@@ -514,17 +514,15 @@ public sealed class TrayAppBuilder
 			return exitCode;
 		}
 
+		using DebouncedPreferenceStore owned = store;
+
 		try
 		{
-			await store.FlushAsync().ConfigureAwait(false);
+			await owned.FlushAsync().ConfigureAwait(false);
 		}
 		catch (Exception ex) when (FatalError.IsNotFatal(ex))
 		{
 			await Console.Error.WriteLineAsync($"Could not save preferences: {ex.Message}").ConfigureAwait(false);
-		}
-		finally
-		{
-			store.Dispose();
 		}
 
 		return exitCode;
