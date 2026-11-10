@@ -339,9 +339,19 @@ internal sealed class TrayApplication : Application, IDisposable
 		Dispatcher.UIThread.InvokeShutdown();
 	}
 
+	/// <summary>
+	/// Gets the text the last refresh chose for the tray icon's tooltip.
+	/// </summary>
+	/// <remarks>
+	/// Kept apart from the <see cref="TrayIcon"/> itself, which does not exist until Avalonia has started, so
+	/// a test can see what a refresh would hand it.
+	/// </remarks>
+	internal string ToolTip { get; private set; } = string.Empty;
+
 	private void RefreshMenu()
 	{
 		menu.Refresh();
+		ToolTip = ToolTipFor(menu.StatusItem?.Header, app.DisplayName, OperatingSystem.IsLinux());
 
 		foreach ((TrayMenuItem model, NativeMenuItem native) in entries)
 		{
@@ -363,7 +373,30 @@ internal sealed class TrayApplication : Application, IDisposable
 				trayIcon.Icon = app.Icons.For(active);
 			}
 
-			trayIcon.ToolTipText = menu.StatusItem?.Header ?? app.DisplayName;
+			trayIcon.ToolTipText = ToolTip;
 		}
+	}
+
+	/// <summary>
+	/// Chooses the text handed to <see cref="TrayIcon.ToolTipText"/>.
+	/// </summary>
+	/// <param name="status">The status line's current text, or <see langword="null"/> when the tool has none.</param>
+	/// <param name="displayName">The tool's display name.</param>
+	/// <param name="isLinux">Whether the tray is a StatusNotifierItem.</param>
+	/// <returns>The status on Windows and macOS, where it really is a tooltip; the display name on Linux.</returns>
+	/// <remarks>
+	/// On Linux, Avalonia's <c>DBusTrayIconImpl.SetToolTipText</c> sets the StatusNotifierItem's <c>Id</c> and
+	/// <c>Title</c> to the text, and leaves its <c>ToolTip</c> empty. The specification asks for an <c>Id</c>
+	/// that is consistent between sessions, and panels key per-item settings on it, so a status sentence there
+	/// makes the tool a new application in each state. The status stays in the menu's status line.
+	/// </remarks>
+	internal static string ToolTipFor(string? status, string displayName, bool isLinux)
+	{
+		if (isLinux)
+		{
+			return displayName;
+		}
+
+		return status ?? displayName;
 	}
 }

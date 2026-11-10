@@ -265,7 +265,7 @@ reference ambiguous.
 | `Create(string name)` | `TrayAppBuilder` | Starts describing a tool with the command name as typed. |
 | `DisplayName(string value)` | `TrayAppBuilder` | The name shown in the menu and in messages. Defaults to the command name. |
 | `Summary(string value)` | `TrayAppBuilder` | The sentence printed under the usage line. |
-| `Status(Func<string> describe)` | `TrayAppBuilder` | What the tool says it is doing: the menu's status line, the tooltip, and the `State` row of `--status`. |
+| `Status(Func<string> describe)` | `TrayAppBuilder` | What the tool says it is doing: the menu's status line, the tooltip on Windows and macOS, and the `State` row of `--status`. On Linux the tooltip is the display name, because Avalonia makes it the StatusNotifierItem `Id`. |
 | `Status(string label, Func<string> value)` | `TrayAppBuilder` | An extra label/value row in the `--status` report. |
 | `Icons(Assembly assembly, string active, string idle)` | `TrayAppBuilder` | The two tray images, by embedded resource name. |
 | `Icon(Assembly assembly, string resourceName)` | `TrayAppBuilder` | One tray image, used whatever the state. |

@@ -122,8 +122,10 @@ public sealed class TrayAppBuilder
 	/// <returns>The builder, for chaining.</returns>
 	/// <exception cref="ArgumentNullException"><paramref name="describe"/> is <see langword="null"/>.</exception>
 	/// <remarks>
-	/// The text is the disabled line at the top of the menu, the tray icon's tooltip, and the <c>State</c> row
-	/// of <c>--status</c>, so it is worth writing as a sentence someone would want to read in all three.
+	/// The text is the disabled line at the top of the menu, the tray icon's tooltip on Windows and macOS, and
+	/// the <c>State</c> row of <c>--status</c>, so it is worth writing as a sentence someone would want to read
+	/// in all three. On Linux the tray item's tooltip is the display name instead: Avalonia makes that text the
+	/// StatusNotifierItem's <c>Id</c>, which panels expect to stay the same in every state.
 	/// </remarks>
 	public TrayAppBuilder Status(Func<string> describe)
 	{
