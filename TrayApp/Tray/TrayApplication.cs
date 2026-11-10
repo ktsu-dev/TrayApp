@@ -339,9 +339,19 @@ internal sealed class TrayApplication : Application, IDisposable
 		Dispatcher.UIThread.InvokeShutdown();
 	}
 
+	/// <summary>
+	/// Gets the text the last refresh chose for the tray icon's tooltip.
+	/// </summary>
+	/// <remarks>
+	/// Kept apart from the <see cref="TrayIcon"/> itself, which does not exist until Avalonia has started, so
+	/// a test can see what a refresh would hand it.
+	/// </remarks>
+	internal string ToolTip { get; private set; } = string.Empty;
+
 	private void RefreshMenu()
 	{
 		menu.Refresh();
+		ToolTip = ToolTipFor(menu.StatusItem?.Header, app.DisplayName, OperatingSystem.IsLinux());
 
 		foreach ((TrayMenuItem model, NativeMenuItem native) in entries)
 		{
@@ -363,7 +373,7 @@ internal sealed class TrayApplication : Application, IDisposable
 				trayIcon.Icon = app.Icons.For(active);
 			}
 
-			trayIcon.ToolTipText = ToolTipFor(menu.StatusItem?.Header, app.DisplayName, OperatingSystem.IsLinux());
+			trayIcon.ToolTipText = ToolTip;
 		}
 	}
 
@@ -380,6 +390,13 @@ internal sealed class TrayApplication : Application, IDisposable
 	/// that is consistent between sessions, and panels key per-item settings on it, so a status sentence there
 	/// makes the tool a new application in each state. The status stays in the menu's status line.
 	/// </remarks>
-	internal static string ToolTipFor(string? status, string displayName, bool isLinux) =>
-		isLinux ? displayName : status ?? displayName;
+	internal static string ToolTipFor(string? status, string displayName, bool isLinux)
+	{
+		if (isLinux)
+		{
+			return displayName;
+		}
+
+		return status ?? displayName;
+	}
 }

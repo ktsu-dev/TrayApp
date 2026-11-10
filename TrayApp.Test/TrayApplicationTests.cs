@@ -2,6 +2,7 @@
 
 namespace ktsu.TrayApp.Test;
 
+using System;
 using System.Linq;
 using Avalonia.Controls;
 using ktsu.TrayApp;
@@ -472,6 +473,27 @@ public class TrayApplicationTests
 		status = "running for 00:00:05";
 		menu.Refresh();
 		Assert.AreEqual("Demo", TrayApplication.ToolTipFor(menu.StatusItem?.Header, app.DisplayName, isLinux: true));
+	}
+
+	[TestMethod]
+	public void Activate_ARefreshThatChangesTheStatus_KeepsTheLinuxToolTipToTheDisplayName()
+	{
+		bool running = false;
+
+		TrayAppDefinition app = TrayAppBuilder.Create("demo")
+			.DisplayName("Demo")
+			.Status(() => running ? "running for 00:00:05" : "idle")
+			.Toggle("Running", () => running, value => running = value)
+			.Build();
+
+		using TrayApplication host = Host(app, out TrayMenu menu);
+
+		host.Activate(menu.Items.First(item => item is TrayToggleItem));
+
+		// The refresh after a click is what used to hand the status to the tray icon, and on Linux Avalonia
+		// makes that text the StatusNotifierItem's Id.
+		Assert.IsTrue(running);
+		Assert.AreEqual(OperatingSystem.IsLinux() ? "Demo" : "running for 00:00:05", host.ToolTip);
 	}
 
 	[TestMethod]
