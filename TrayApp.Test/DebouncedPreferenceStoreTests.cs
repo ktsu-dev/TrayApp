@@ -182,6 +182,26 @@ public class DebouncedPreferenceStoreTests
 		Assert.AreEqual(string.Empty, errors.ToString());
 	}
 
+	[TestMethod]
+	public async Task DebounceElapsed_AfterDispose_DoesNothing()
+	{
+		CountingPersistenceProvider provider = new(new InMemoryPersistenceProvider<string>());
+		using StringWriter errors = new();
+		DebouncedPreferenceStore store = new(provider, Key, Debounce, errors);
+		await store.LoadAsync().ConfigureAwait(false);
+
+		store.Set("running", true);
+		store.Dispose();
+
+		// A callback the timer queued before Dispose can start after it: Timer.Dispose does not recall one.
+		// It cannot be made to arrive late on purpose, so this calls the callback's target directly.
+		store.OnDebounceElapsed(state: null);
+		await Task.Delay(Debounce * 2).ConfigureAwait(false);
+
+		Assert.AreEqual(string.Empty, errors.ToString());
+		Assert.AreEqual(0, provider.Writes);
+	}
+
 	private static async Task WaitUntilAsync(Func<bool> condition)
 	{
 		Stopwatch elapsed = Stopwatch.StartNew();

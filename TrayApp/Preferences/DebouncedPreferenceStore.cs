@@ -145,7 +145,7 @@ internal sealed class DebouncedPreferenceStore : IDisposable
 		"Design",
 		"CA1031:Do not catch general exception types",
 		Justification = "This runs on a timer thread with nothing to return an exception to, and a provider that cannot write - a read-only home directory, a full disk - must not take down a tool the user started for another reason.")]
-	private async void OnDebounceElapsed(object? state)
+	internal async void OnDebounceElapsed(object? state)
 	{
 		if (Volatile.Read(ref disposed))
 		{
