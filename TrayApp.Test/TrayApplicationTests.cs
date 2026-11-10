@@ -454,4 +454,37 @@ public class TrayApplicationTests
 			Environment.SetEnvironmentVariable("TRAYAPP_DEBUG", previous);
 		}
 	}
+
+	[TestMethod]
+	public void ToolTipFor_OnLinux_StaysTheDisplayNameWhateverTheStatusSays()
+	{
+		string status = "idle";
+		TrayAppDefinition app = TrayAppBuilder.Create("demo")
+			.DisplayName("Demo")
+			.Status(() => status)
+			.Build();
+		TrayMenu menu = new(app.DisplayName, app.Status, app.Items);
+
+		// Avalonia makes this text the StatusNotifierItem's Id, which has to be the same in every state.
+		menu.Refresh();
+		Assert.AreEqual("Demo", TrayApplication.ToolTipFor(menu.StatusItem?.Header, app.DisplayName, isLinux: true));
+
+		status = "running for 00:00:05";
+		menu.Refresh();
+		Assert.AreEqual("Demo", TrayApplication.ToolTipFor(menu.StatusItem?.Header, app.DisplayName, isLinux: true));
+	}
+
+	[TestMethod]
+	public void ToolTipFor_OffLinux_FollowsTheStatus()
+	{
+		Assert.AreEqual("idle", TrayApplication.ToolTipFor("idle", "Demo", isLinux: false));
+		Assert.AreEqual("running for 00:00:05", TrayApplication.ToolTipFor("running for 00:00:05", "Demo", isLinux: false));
+	}
+
+	[TestMethod]
+	public void ToolTipFor_WithNoStatus_IsTheDisplayName()
+	{
+		Assert.AreEqual("Demo", TrayApplication.ToolTipFor(null, "Demo", isLinux: false));
+		Assert.AreEqual("Demo", TrayApplication.ToolTipFor(null, "Demo", isLinux: true));
+	}
 }

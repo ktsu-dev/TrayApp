@@ -363,7 +363,23 @@ internal sealed class TrayApplication : Application, IDisposable
 				trayIcon.Icon = app.Icons.For(active);
 			}
 
-			trayIcon.ToolTipText = menu.StatusItem?.Header ?? app.DisplayName;
+			trayIcon.ToolTipText = ToolTipFor(menu.StatusItem?.Header, app.DisplayName, OperatingSystem.IsLinux());
 		}
 	}
+
+	/// <summary>
+	/// Chooses the text handed to <see cref="TrayIcon.ToolTipText"/>.
+	/// </summary>
+	/// <param name="status">The status line's current text, or <see langword="null"/> when the tool has none.</param>
+	/// <param name="displayName">The tool's display name.</param>
+	/// <param name="isLinux">Whether the tray is a StatusNotifierItem.</param>
+	/// <returns>The status on Windows and macOS, where it really is a tooltip; the display name on Linux.</returns>
+	/// <remarks>
+	/// On Linux, Avalonia's <c>DBusTrayIconImpl.SetToolTipText</c> sets the StatusNotifierItem's <c>Id</c> and
+	/// <c>Title</c> to the text, and leaves its <c>ToolTip</c> empty. The specification asks for an <c>Id</c>
+	/// that is consistent between sessions, and panels key per-item settings on it, so a status sentence there
+	/// makes the tool a new application in each state. The status stays in the menu's status line.
+	/// </remarks>
+	internal static string ToolTipFor(string? status, string displayName, bool isLinux) =>
+		isLinux ? displayName : status ?? displayName;
 }
