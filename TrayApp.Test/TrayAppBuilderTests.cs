@@ -335,6 +335,162 @@ public class TrayAppBuilderTests
 	}
 
 	[TestMethod]
+	public async Task RecoverFromTrayFailure_FallingBackToTheConsole_UndoesTheRestoredPreferences()
+	{
+		InMemoryPersistenceProvider<string> provider = await SeedAsync("running", false).ConfigureAwait(false);
+
+		bool running = true;
+		bool? runningAtStart = null;
+
+		TrayAppDefinition app = TrayAppBuilder.Create("demo")
+			.Toggle("Running", () => running, value => running = value, persistAs: "running")
+			.OnStart(() => runningAtStart = running)
+			.Preferences(provider)
+			.Build();
+
+		using DebouncedPreferenceStore store = new(provider, "tray", Debounce);
+		List<RestoredToggle> restored = [];
+		_ = TrayAppBuilder.LoadPreferences(app, store, restored);
+		Assert.IsFalse(running, "the tray's remembered value should be restored first");
+
+		int exitCode = TrayAppBuilder.RecoverFromTrayFailure(
+			app,
+			new CommandLineOptions { Duration = TimeSpan.Zero },
+			host: null,
+			new InvalidOperationException("XOpenDisplay failed"),
+			restored);
+
+		// The console run has no menu to turn the toggle back on from, so it must not inherit the tray's state.
+		Assert.AreEqual(0, exitCode);
+		Assert.IsTrue(runningAtStart, "the console run should start with the default, not the tray's remembered value");
+	}
+
+	[TestMethod]
+	public async Task RecoverFromTrayFailure_FallingBackToTheConsole_KeepsWhatTheCommandLineAskedFor()
+	{
+		InMemoryPersistenceProvider<string> provider = await SeedAsync("running", true).ConfigureAwait(false);
+
+		bool running = false;
+		bool? runningAtStart = null;
+
+		TrayAppDefinition app = TrayAppBuilder.Create("demo")
+			.Toggle("Running", () => running, value => running = value, persistAs: "running")
+			.Flag(["--on"], "Start switched on.", () => running = true)
+			.OnStart(() => runningAtStart = running)
+			.Preferences(provider)
+			.Build();
+
+		using DebouncedPreferenceStore store = new(provider, "tray", Debounce);
+		List<RestoredToggle> restored = [];
+		_ = TrayAppBuilder.LoadPreferences(app, store, restored);
+
+		Assert.IsTrue(CommandLineParser.TryParse(["--on"], app.Options, out CommandLineOptions parsed, out _));
+		CommandLineOptions options = new() { Duration = TimeSpan.Zero, Matches = parsed.Matches };
+		Assert.IsTrue(TrayAppBuilder.TryApplyOptions(options, out _));
+
+		_ = TrayAppBuilder.RecoverFromTrayFailure(app, options, host: null, new InvalidOperationException("XOpenDisplay failed"), restored);
+
+		// Undoing the restore puts the toggle back to off; the switch typed this time still has to win.
+		Assert.IsTrue(runningAtStart);
+	}
+
+	[TestMethod]
+	public async Task RecoverFromTrayFailure_WhenTheToolRefusesTheUndo_StillRunsInTheConsole()
+	{
+		InMemoryPersistenceProvider<string> provider = await SeedAsync("running", true).ConfigureAwait(false);
+
+		bool running = false;
+		bool restoring = true;
+		int starts = 0;
+
+		TrayAppDefinition app = TrayAppBuilder.Create("demo")
+			.Toggle(
+				"Running",
+				() => running,
+				value =>
+				{
+					// Taking the resource back is refused, as an inhibitor can be on any platform.
+					if (!restoring)
+					{
+						throw new InvalidOperationException("no inhibitor here");
+					}
+
+					running = value;
+				},
+				persistAs: "running")
+			.OnStart(() => starts++)
+			.Preferences(provider)
+			.Build();
+
+		using DebouncedPreferenceStore store = new(provider, "tray", Debounce);
+		List<RestoredToggle> restored = [];
+		_ = TrayAppBuilder.LoadPreferences(app, store, restored);
+		restoring = false;
+
+		int exitCode = TrayAppBuilder.RecoverFromTrayFailure(
+			app,
+			new CommandLineOptions { Duration = TimeSpan.Zero },
+			host: null,
+			new InvalidOperationException("XOpenDisplay failed"),
+			restored);
+
+		// A refused undo is reported, as a refused restore is, and does not cost the user the console run.
+		Assert.AreEqual(0, exitCode);
+		Assert.AreEqual(1, starts);
+	}
+
+	[TestMethod]
+	public async Task RecoverFromTrayFailure_WhenTheToggleIsAlreadyBack_DoesNotCallTheSetterAgain()
+	{
+		InMemoryPersistenceProvider<string> provider = await SeedAsync("running", false).ConfigureAwait(false);
+
+		bool running = true;
+		int sets = 0;
+
+		TrayAppDefinition app = TrayAppBuilder.Create("demo")
+			.Toggle(
+				"Running",
+				() => running,
+				value =>
+				{
+					sets++;
+					running = value;
+				},
+				persistAs: "running")
+			.Flag(["--on"], "Start switched on.", () => running = true)
+			.Preferences(provider)
+			.Build();
+
+		using DebouncedPreferenceStore store = new(provider, "tray", Debounce);
+		List<RestoredToggle> restored = [];
+		_ = TrayAppBuilder.LoadPreferences(app, store, restored);
+		Assert.AreEqual(1, sets);
+
+		Assert.IsTrue(CommandLineParser.TryParse(["--on"], app.Options, out CommandLineOptions parsed, out _));
+		CommandLineOptions options = new() { Duration = TimeSpan.Zero, Matches = parsed.Matches };
+		Assert.IsTrue(TrayAppBuilder.TryApplyOptions(options, out _));
+
+		_ = TrayAppBuilder.RecoverFromTrayFailure(app, options, host: null, new InvalidOperationException("XOpenDisplay failed"), restored);
+
+		// The command line already put the toggle back where it started, so the undo has nothing to set:
+		// a setter that takes a resource must not be asked to take it twice.
+		Assert.AreEqual(1, sets);
+		Assert.IsTrue(running);
+	}
+
+	private static async Task<InMemoryPersistenceProvider<string>> SeedAsync(string key, bool value)
+	{
+		InMemoryPersistenceProvider<string> provider = new();
+
+		using DebouncedPreferenceStore seed = new(provider, "tray", Debounce);
+		await seed.LoadAsync().ConfigureAwait(false);
+		seed.Set(key, value);
+		await seed.FlushAsync().ConfigureAwait(false);
+
+		return provider;
+	}
+
+	[TestMethod]
 	public async Task LoadPreferences_WhenTheToolRefuses_KeepsGoingAndHandsBackTheMessage()
 	{
 		InMemoryPersistenceProvider<string> provider = new();
