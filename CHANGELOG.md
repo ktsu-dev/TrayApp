@@ -2,6 +2,13 @@
 
 Changes since v1.5.0:
 
+- [patch] Read the status line of a console run through StatusReport.Read (#83) (matt-edmondson)
+- [patch] Claim the shutdown on Quit and the --for expiry, not only on a signal (#84) (matt-edmondson)
+- Indent a multi-line --status value to the value column [patch] (#86) (matt-edmondson)
+- Read a long option's value attached with =, as in --for=5s [patch] (#90) (matt-edmondson)
+- Keep the tray item's Id the same in every status on Linux [patch] (#96) (matt-edmondson)
+- Report no save failure when quitting during a debounced write [patch] (#97) (matt-edmondson)
+- Undo remembered tray preferences when falling back to the console [patch] (#98) (matt-edmondson)
 - [patch] Keep a gap after a long label in --status and align every value (#76) (matt-edmondson)
 - Report an out-of-range number for an option as a usage error [patch] (#70) (matt-edmondson)
 - Leave a later toggle alone when the tray icon's first toggle is disabled [patch] (#68) (matt-edmondson)
