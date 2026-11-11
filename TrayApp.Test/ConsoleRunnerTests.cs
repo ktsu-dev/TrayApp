@@ -88,7 +88,7 @@ public class ConsoleRunnerTests
 	}
 
 	[TestMethod]
-	public void Run_WhenTheRunItselfThrows_StillStops()
+	public void Run_WhenTheStatusThrows_ReportsItAndStillRunsAndStops()
 	{
 		bool stopped = false;
 
@@ -97,10 +97,26 @@ public class ConsoleRunnerTests
 			.OnStop(() => stopped = true)
 			.Build();
 
-		// Describing the run is the tool's code too. Whatever it does, the release on the way out is the
-		// library's promise, so it happens in a finally rather than after the last statement.
-		Assert.ThrowsExactly<InvalidOperationException>(() => ConsoleRunner.Run(app, ShortRun()));
+		// Describing the run is the tool's code too, and a getter that throws is most likely to do so in the
+		// environment that sends a run here, so it is the line's text, as in --status, not an unhandled
+		// exception that breaks the exit-code contract.
+		using System.IO.StringWriter output = new();
+		System.IO.TextWriter original = Console.Out;
+		Console.SetOut(output);
+		int exitCode;
+		try
+		{
+			exitCode = ConsoleRunner.Run(app, ShortRun());
+		}
+		finally
+		{
+			Console.SetOut(original);
+		}
+
+		Assert.AreEqual(0, exitCode);
 		Assert.IsTrue(stopped);
+		Assert.Contains("demo: error: the status broke, stopping after", output.ToString());
+		Assert.Contains("demo: stopped.", output.ToString());
 	}
 
 	[TestMethod]

@@ -70,6 +70,13 @@ public sealed class TrayToggleItem : TrayMenuItem
 	internal bool ReadState() => getState();
 
 	/// <summary>
+	/// Reads whether the tool currently allows the toggle to be set, without touching
+	/// <see cref="TrayMenuItem.IsEnabled"/>.
+	/// </summary>
+	/// <returns>The predicate's value, or <see langword="true"/> when there is none. The predicate belongs to the tool and may throw.</returns>
+	internal bool ReadEnabled() => getEnabled?.Invoke() ?? true;
+
+	/// <summary>
 	/// Sets the toggle to the opposite of what the tool currently reports.
 	/// </summary>
 	/// <remarks>
