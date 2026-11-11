@@ -1,6 +1,7 @@
-## v1.5.4 (patch)
+## v1.5.5-pre.1 (prerelease)
 
-Changes since v1.5.3:
+Changes since v1.5.4:
 
-- Start with defaults when preferences can't be read, and exit cleanly when they can't be saved [patch] (#92) (matt-edmondson)
+- Bump ktsu.Sdk and 8 others (dependabot[bot])
+- Bump MSTest.Sdk from 4.5.2 to 4.5.3 (dependabot[bot])
 
