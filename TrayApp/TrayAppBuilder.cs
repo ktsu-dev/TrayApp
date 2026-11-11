@@ -122,8 +122,10 @@ public sealed class TrayAppBuilder
 	/// <returns>The builder, for chaining.</returns>
 	/// <exception cref="ArgumentNullException"><paramref name="describe"/> is <see langword="null"/>.</exception>
 	/// <remarks>
-	/// The text is the disabled line at the top of the menu, the tray icon's tooltip, and the <c>State</c> row
-	/// of <c>--status</c>, so it is worth writing as a sentence someone would want to read in all three.
+	/// The text is the disabled line at the top of the menu, the tray icon's tooltip on Windows and macOS, and
+	/// the <c>State</c> row of <c>--status</c>, so it is worth writing as a sentence someone would want to read
+	/// in all three. On Linux the tray item's tooltip is the display name instead: Avalonia makes that text the
+	/// StatusNotifierItem's <c>Id</c>, which panels expect to stay the same in every state.
 	/// </remarks>
 	public TrayAppBuilder Status(Func<string> describe)
 	{
@@ -435,6 +437,7 @@ public sealed class TrayAppBuilder
 		bool useTray = UseTray(options);
 		DebouncedPreferenceStore? store = null;
 		string? restoreError = null;
+		List<RestoredToggle> restored = [];
 
 		try
 		{
@@ -445,7 +448,7 @@ public sealed class TrayAppBuilder
 			if (useTray && !options.ShowStatus && app.Persistence is not null)
 			{
 				store = new DebouncedPreferenceStore(app.Persistence, app.PreferenceKey, app.PreferenceDebounce);
-				restoreError = LoadPreferences(app, store);
+				restoreError = LoadPreferences(app, store, restored);
 			}
 
 			if (!TryApplyOptions(options, out string optionError))
@@ -459,7 +462,7 @@ public sealed class TrayAppBuilder
 				return Task.FromResult(ExitSuccess);
 			}
 
-			int exitCode = useTray ? RunTray(app, options, store, restoreError) : ConsoleRunner.Run(app, options);
+			int exitCode = useTray ? RunTray(app, options, store, restoreError, restored) : ConsoleRunner.Run(app, options);
 
 			// FinishAsync owns the store from here: it flushes whatever the run queued and disposes it.
 			Task<int> finishing = FinishAsync(exitCode, store);
@@ -515,6 +518,10 @@ public sealed class TrayAppBuilder
 	/// </summary>
 	/// <param name="app">The tool being run.</param>
 	/// <param name="store">The store to read from.</param>
+	/// <param name="restored">
+	/// Receives each toggle the restore changed and the state it was in before, so a fall back to the console
+	/// can undo the restore. <see langword="null"/> when the caller has no use for them.
+	/// </param>
 	/// <returns>The first refusal's message, for the menu's status line, or <see langword="null"/>.</returns>
 	/// <remarks>
 	/// <para>
@@ -529,6 +536,13 @@ public sealed class TrayAppBuilder
 	/// end the process before the tray appeared, which is the one thing this library exists to prevent: the
 	/// remaining toggles are still restored, and the tray still comes up saying why.
 	/// </para>
+	/// <para>
+	/// A toggle whose <c>isEnabled</c> predicate is false is not restored, just as a click on it does nothing.
+	/// Only clicked toggles are saved, so a dependent toggle can be remembered as on after its parent was
+	/// turned off, and setting it would run its setter in a state the menu forbids. The predicate is read
+	/// live, in registration order, so a parent restored first can still enable its dependants. The skipped
+	/// toggle's remembered value stays in the store, so it comes back on a later run once its parent is on.
+	/// </para>
 	/// </remarks>
 	[SuppressMessage(
 		"Reliability",
@@ -538,7 +552,7 @@ public sealed class TrayAppBuilder
 		"Design",
 		"CA1031:Do not catch general exception types",
 		Justification = "The setter belongs to the consuming tool, so there is no exception type to filter on beyond the fatal ones FatalError excludes, and a refusal here must not stop the tray from coming up.")]
-	internal static string? LoadPreferences(TrayAppDefinition app, DebouncedPreferenceStore store)
+	internal static string? LoadPreferences(TrayAppDefinition app, DebouncedPreferenceStore store, ICollection<RestoredToggle>? restored = null)
 	{
 		store.LoadAsync().GetAwaiter().GetResult();
 
@@ -556,9 +570,16 @@ public sealed class TrayAppBuilder
 				// A restore asks for a state, where a click asks for a change, so a toggle already in the
 				// remembered state is left alone: a setter written as a flip (as the class example's is) would
 				// otherwise invert it, and one that takes a resource would take it a second time.
-				if (toggle.ReadState() != remembered)
+				if (!toggle.ReadEnabled())
+				{
+					continue;
+				}
+
+				bool before = toggle.ReadState();
+				if (before != remembered)
 				{
 					toggle.Set(remembered);
+					restored?.Add(new RestoredToggle(toggle, before));
 				}
 			}
 			catch (Exception ex) when (FatalError.IsNotFatal(ex))
@@ -602,7 +623,8 @@ public sealed class TrayAppBuilder
 		TrayAppDefinition app,
 		CommandLineOptions options,
 		DebouncedPreferenceStore? store,
-		string? restoreError)
+		string? restoreError,
+		IReadOnlyList<RestoredToggle> restored)
 	{
 		TrayMenu menu = new(app.DisplayName, app.Status, app.Items);
 		menu.SeedError(restoreError);
@@ -631,7 +653,7 @@ public sealed class TrayAppBuilder
 		}
 		catch (Exception ex)
 		{
-			return RecoverFromTrayFailure(app, options, host, ex);
+			return RecoverFromTrayFailure(app, options, host, ex, restored);
 		}
 	}
 
@@ -642,12 +664,16 @@ public sealed class TrayAppBuilder
 	/// <param name="options">The options the run was started with.</param>
 	/// <param name="host">The tray host, or <see langword="null"/> if Avalonia never constructed it.</param>
 	/// <param name="ex">What the run threw.</param>
+	/// <param name="restored">
+	/// The toggles the preference restore changed, undone before a fall back to the console.
+	/// </param>
 	/// <returns>The process exit code.</returns>
 	internal static int RecoverFromTrayFailure(
 		TrayAppDefinition app,
 		CommandLineOptions options,
 		TrayApplication? host,
-		Exception ex)
+		Exception ex,
+		IReadOnlyList<RestoredToggle>? restored = null)
 	{
 		if (Environment.GetEnvironmentVariable(DebugEnvironmentVariable) == "1")
 		{
@@ -681,7 +707,50 @@ public sealed class TrayAppBuilder
 		// running.
 		host?.Dispose();
 		Console.Error.WriteLine($"{app.Name}: could not show a tray icon ({ex.Message}). Staying in the terminal instead.");
+		UndoPreferences(app, options, restored);
 		return ConsoleRunner.Run(app, options);
+	}
+
+	/// <summary>
+	/// Puts back the toggles a preference restore changed, then applies the command line again.
+	/// </summary>
+	/// <param name="app">The tool being run.</param>
+	/// <param name="options">The options the run was started with.</param>
+	/// <param name="restored">The toggles the restore changed, or <see langword="null"/> for none.</param>
+	/// <remarks>
+	/// Remembered preferences are the tray's, and the console run has no menu to change them from. A tray
+	/// left with "keep awake" unchecked would otherwise turn a console run that fell back from it into a
+	/// silent no-op. The options are applied again afterwards because one of them may have set the same
+	/// toggle that this puts back, and what was typed this time still wins.
+	/// </remarks>
+	[SuppressMessage(
+		"Design",
+		"CA1031:Do not catch general exception types",
+		Justification = "The setter belongs to the consuming tool, so there is no exception type to filter on beyond the fatal ones FatalError excludes, and a refusal here must not stop the console run.")]
+	internal static void UndoPreferences(TrayAppDefinition app, CommandLineOptions options, IReadOnlyList<RestoredToggle>? restored)
+	{
+		if (restored is null || restored.Count == 0)
+		{
+			return;
+		}
+
+		foreach (RestoredToggle undo in restored)
+		{
+			try
+			{
+				if (undo.Toggle.ReadState() != undo.Before)
+				{
+					undo.Toggle.Set(undo.Before);
+				}
+			}
+			catch (Exception ex) when (FatalError.IsNotFatal(ex))
+			{
+				Console.Error.WriteLine($"{app.Name}: {ex.Message}");
+			}
+		}
+
+		// These options already applied once, before the tray was tried, so they cannot fail to parse now.
+		_ = TryApplyOptions(options, out _);
 	}
 
 	/// <summary>

@@ -133,15 +133,51 @@ public class ShutdownSignalsTests
 	public void ASignalAfterQuit_IsNotCancelled()
 	{
 		using TrayApplication host = Host();
+		int endedRuns = 0;
+		host.EndRun = () => endedRuns++;
 		using ShutdownSignals signals = new(() => host);
 
-		// The Quit item (or anything else) already posted the shutdown.
-		Assert.IsTrue(host.RequestShutdown());
+		// The path the real Quit item takes. Its stop action may hang, and the next signal has to end the
+		// process rather than queue a second shutdown behind it.
+		host.OnQuitRequested(null, EventArgs.Empty);
 
 		PosixSignalContext context = new(PosixSignal.SIGHUP);
 		signals.OnTermination(context);
 
+		Assert.AreEqual(1, endedRuns);
 		Assert.IsFalse(context.Cancel);
+	}
+
+	[TestMethod]
+	public void ASignalAfterTheDurationExpires_IsNotCancelled()
+	{
+		using TrayApplication host = Host();
+		int endedRuns = 0;
+		host.EndRun = () => endedRuns++;
+		using ShutdownSignals signals = new(() => host);
+
+		// What the --for timer does when the window ends; under systemd the next SIGTERM is `systemctl stop`.
+		host.OnDurationExpired();
+
+		PosixSignalContext context = new(PosixSignal.SIGTERM);
+		signals.OnTermination(context);
+
+		Assert.AreEqual(1, endedRuns);
+		Assert.IsFalse(context.Cancel);
+	}
+
+	[TestMethod]
+	public void QuitAfterASignal_DoesNotEndTheRunAgain()
+	{
+		using TrayApplication host = Host();
+		int endedRuns = 0;
+		host.EndRun = () => endedRuns++;
+
+		// The signal's shutdown is already posted, so Quit has nothing left to start.
+		Assert.IsTrue(host.RequestShutdown());
+		host.OnQuitRequested(null, EventArgs.Empty);
+
+		Assert.AreEqual(0, endedRuns);
 	}
 
 	[TestMethod]

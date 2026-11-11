@@ -5,6 +5,7 @@ namespace ktsu.TrayApp.Preferences;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
+using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using ktsu.Essentials;
@@ -29,9 +30,14 @@ internal sealed class DebouncedPreferenceStore : IDisposable
 	private readonly IPersistenceProvider<string> provider;
 	private readonly string key;
 	private readonly TimeSpan debounce;
+	[SuppressMessage(
+		"Usage",
+		"CA2213:Disposable fields should be disposed",
+		Justification = "A timer callback already under way can still reach it after Dispose, and a disposed SemaphoreSlim throws there. Nothing uses its AvailableWaitHandle, so there is nothing for Dispose to release.")]
 	private readonly SemaphoreSlim writing = new(1, 1);
 	private readonly Lock gate = new();
 	private readonly Timer timer;
+	private readonly TextWriter errors;
 
 	private Dictionary<string, bool> values = [];
 	private bool dirty;
@@ -43,7 +49,8 @@ internal sealed class DebouncedPreferenceStore : IDisposable
 	/// <param name="provider">Where the state is stored.</param>
 	/// <param name="key">The key it is stored under.</param>
 	/// <param name="debounce">How long a burst of changes is coalesced for.</param>
-	internal DebouncedPreferenceStore(IPersistenceProvider<string> provider, string key, TimeSpan debounce)
+	/// <param name="errors">Where a debounced write that fails is reported; standard error when omitted.</param>
+	internal DebouncedPreferenceStore(IPersistenceProvider<string> provider, string key, TimeSpan debounce, TextWriter? errors = null)
 	{
 		Ensure.NotNull(provider);
 		Ensure.NotNull(key);
@@ -51,6 +58,7 @@ internal sealed class DebouncedPreferenceStore : IDisposable
 		this.provider = provider;
 		this.key = key;
 		this.debounce = debounce;
+		this.errors = errors ?? Console.Error;
 		timer = new Timer(OnDebounceElapsed, state: null, Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
 	}
 
@@ -125,24 +133,32 @@ internal sealed class DebouncedPreferenceStore : IDisposable
 			return;
 		}
 
-		disposed = true;
+		// The semaphore is left for the collector rather than disposed. Neither Timer.Dispose nor the flush before
+		// it waits for a callback already under way, so a callback can still reach the semaphore after this -
+		// queued before it, or woken by the flush's release - and a disposed one throws there, which would report
+		// a save that succeeded as failed. Nothing reads its AvailableWaitHandle, so it holds nothing to release.
+		Volatile.Write(ref disposed, true);
 		timer.Dispose();
-		writing.Dispose();
 	}
 
 	[SuppressMessage(
 		"Design",
 		"CA1031:Do not catch general exception types",
 		Justification = "This runs on a timer thread with nothing to return an exception to, and a provider that cannot write - a read-only home directory, a full disk - must not take down a tool the user started for another reason.")]
-	private async void OnDebounceElapsed(object? state)
+	internal async void OnDebounceElapsed(object? state)
 	{
+		if (Volatile.Read(ref disposed))
+		{
+			return;
+		}
+
 		try
 		{
 			await WriteIfDirtyAsync(CancellationToken.None).ConfigureAwait(false);
 		}
 		catch (Exception ex)
 		{
-			await Console.Error.WriteLineAsync($"Could not save preferences: {ex.Message}").ConfigureAwait(false);
+			await errors.WriteLineAsync($"Could not save preferences: {ex.Message}").ConfigureAwait(false);
 		}
 	}
 

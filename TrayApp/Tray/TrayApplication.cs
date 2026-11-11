@@ -59,9 +59,19 @@ internal sealed class TrayApplication : Application, IDisposable
 		this.menu = menu;
 		this.duration = duration;
 		this.onToggled = onToggled;
+		EndRun = Shutdown;
 
 		BuildNativeMenu();
 	}
+
+	/// <summary>
+	/// Gets or sets what ends the run once a shutdown has been claimed.
+	/// </summary>
+	/// <remarks>
+	/// The lifetime's shutdown, or the dispatcher's when there is no lifetime. Settable only so the tests can
+	/// drive Quit and the <c>--for</c> expiry without shutting down the test host's dispatcher.
+	/// </remarks>
+	internal Action EndRun { get; set; }
 
 	/// <summary>
 	/// Gets the native menu the model was projected onto.
@@ -249,7 +259,38 @@ internal sealed class TrayApplication : Application, IDisposable
 		}
 	}
 
-	private void OnQuitRequested(object? sender, EventArgs e) => Shutdown();
+	/// <summary>
+	/// Ends the run for the Quit item.
+	/// </summary>
+	/// <remarks>
+	/// Internal so the tests can drive the path the real Quit item takes, which needs a platform to wire up.
+	/// </remarks>
+	internal void OnQuitRequested(object? sender, EventArgs e) => ShutdownFromUIThread();
+
+	/// <summary>
+	/// Ends the run for the <c>--for</c> expiry.
+	/// </summary>
+	internal void OnDurationExpired()
+	{
+		expiryTimer?.Stop();
+		ShutdownFromUIThread();
+	}
+
+	/// <summary>
+	/// Claims the shutdown and ends the run, from the UI thread that Quit and the expiry are raised on.
+	/// </summary>
+	/// <remarks>
+	/// Every path that ends the run has to claim <see cref="shutdownRequested"/>, not only a signal's. A stop
+	/// action that hangs after Quit or the expiry is still a stop under way, so the next Ctrl+C or
+	/// <c>SIGTERM</c> must get its default handling and end the process, as it does in the console mode.
+	/// </remarks>
+	private void ShutdownFromUIThread()
+	{
+		if (Interlocked.Exchange(ref shutdownRequested, 1) == 0)
+		{
+			EndRun();
+		}
+	}
 
 	/// <summary>
 	/// Ends the run the way the Quit item does, from any thread.
@@ -269,7 +310,7 @@ internal sealed class TrayApplication : Application, IDisposable
 			return false;
 		}
 
-		Dispatcher.UIThread.Post(Shutdown);
+		Dispatcher.UIThread.Post(() => EndRun());
 		return true;
 	}
 
@@ -317,11 +358,7 @@ internal sealed class TrayApplication : Application, IDisposable
 		}
 
 		expiryTimer = new DispatcherTimer { Interval = window };
-		expiryTimer.Tick += (_, _) =>
-		{
-			expiryTimer.Stop();
-			Shutdown();
-		};
+		expiryTimer.Tick += (_, _) => OnDurationExpired();
 
 		expiryTimer.Start();
 	}
@@ -354,9 +391,19 @@ internal sealed class TrayApplication : Application, IDisposable
 	/// <returns>The text with each underscore doubled.</returns>
 	internal static string AsMenuText(string header) => header.Replace("_", "__", StringComparison.Ordinal);
 
+	/// <summary>
+	/// Gets the text the last refresh chose for the tray icon's tooltip.
+	/// </summary>
+	/// <remarks>
+	/// Kept apart from the <see cref="TrayIcon"/> itself, which does not exist until Avalonia has started, so
+	/// a test can see what a refresh would hand it.
+	/// </remarks>
+	internal string ToolTip { get; private set; } = string.Empty;
+
 	private void RefreshMenu()
 	{
 		menu.Refresh();
+		ToolTip = ToolTipFor(menu.StatusItem?.Header, app.DisplayName, OperatingSystem.IsLinux());
 
 		foreach ((TrayMenuItem model, NativeMenuItem native) in entries)
 		{
@@ -378,7 +425,30 @@ internal sealed class TrayApplication : Application, IDisposable
 				trayIcon.Icon = app.Icons.For(active);
 			}
 
-			trayIcon.ToolTipText = menu.StatusItem?.Header ?? app.DisplayName;
+			trayIcon.ToolTipText = ToolTip;
 		}
+	}
+
+	/// <summary>
+	/// Chooses the text handed to <see cref="TrayIcon.ToolTipText"/>.
+	/// </summary>
+	/// <param name="status">The status line's current text, or <see langword="null"/> when the tool has none.</param>
+	/// <param name="displayName">The tool's display name.</param>
+	/// <param name="isLinux">Whether the tray is a StatusNotifierItem.</param>
+	/// <returns>The status on Windows and macOS, where it really is a tooltip; the display name on Linux.</returns>
+	/// <remarks>
+	/// On Linux, Avalonia's <c>DBusTrayIconImpl.SetToolTipText</c> sets the StatusNotifierItem's <c>Id</c> and
+	/// <c>Title</c> to the text, and leaves its <c>ToolTip</c> empty. The specification asks for an <c>Id</c>
+	/// that is consistent between sessions, and panels key per-item settings on it, so a status sentence there
+	/// makes the tool a new application in each state. The status stays in the menu's status line.
+	/// </remarks>
+	internal static string ToolTipFor(string? status, string displayName, bool isLinux)
+	{
+		if (isLinux)
+		{
+			return displayName;
+		}
+
+		return status ?? displayName;
 	}
 }
