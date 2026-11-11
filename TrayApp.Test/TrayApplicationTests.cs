@@ -71,6 +71,67 @@ public class TrayApplicationTests
 	}
 
 	[TestMethod]
+	public void Constructor_DoublesUnderscoresSoTheMenuShowsThem()
+	{
+		TrayAppDefinition app = TrayAppBuilder.Create("my_tool")
+			.DisplayName("my_tool")
+			.Toggle("keep_awake", () => true, _ => { })
+			.Command("open_log", () => { })
+			.Build();
+
+		using TrayApplication host = Host(app, out _);
+
+		string?[] headers = [.. host.NativeMenu.Items.Where(item => item is not NativeMenuItemSeparator).Cast<NativeMenuItem>().Select(item => item.Header)];
+
+		Assert.Contains("keep__awake", headers);
+		Assert.Contains("open__log", headers);
+		Assert.Contains("Quit my__tool", headers);
+	}
+
+	[TestMethod]
+	public void TrayIconClick_DoublesUnderscoresInTheRefreshedStatusLine()
+	{
+		TrayAppDefinition app = TrayAppBuilder.Create("my_tool")
+			.DisplayName("my_tool")
+			.Status(() => "saving to ~/.config/my_tool/tray.json")
+			.Toggle("One", () => true, _ => { })
+			.Build();
+
+		using TrayApplication host = Host(app, out TrayMenu menu);
+
+		host.OnTrayIconClicked(this, EventArgs.Empty);
+
+		Assert.AreEqual("saving to ~/.config/my_tool/tray.json", menu.StatusItem!.Header);
+		Assert.AreEqual("saving to ~/.config/my__tool/tray.json", ((NativeMenuItem)host.NativeMenu.Items[0]).Header);
+	}
+
+	[TestMethod]
+	public void Activate_WhenTheCommandFails_DoublesTheUnderscoresInTheErrorLine()
+	{
+		TrayAppDefinition app = TrayAppBuilder.Create("my_tool")
+			.DisplayName("my_tool")
+			.Status(() => "idle")
+			.Command("Save", () => throw new InvalidOperationException("can't write my_tool/tray.json"))
+			.Build();
+
+		using TrayApplication host = Host(app, out TrayMenu menu);
+
+		host.Activate(menu.Items.Single(item => item.Header == "Save"));
+
+		// The model keeps the text as written; only what is handed to the native menu is escaped.
+		Assert.AreEqual("my_tool failed: can't write my_tool/tray.json", menu.StatusItem!.Header);
+		Assert.AreEqual("my__tool failed: can't write my__tool/tray.json", ((NativeMenuItem)host.NativeMenu.Items[0]).Header);
+	}
+
+	[TestMethod]
+	[DataRow("plain", "plain")]
+	[DataRow("", "")]
+	[DataRow("_", "__")]
+	[DataRow("a__b", "a____b")]
+	public void AsMenuText_DoublesEveryUnderscore(string header, string expected) =>
+		Assert.AreEqual(expected, TrayApplication.AsMenuText(header));
+
+	[TestMethod]
 	public void Constructor_WithNoStatus_LeavesTheStatusLineOut()
 	{
 		TrayAppDefinition app = TrayAppBuilder.Create("demo")
