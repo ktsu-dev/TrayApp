@@ -59,9 +59,19 @@ internal sealed class TrayApplication : Application, IDisposable
 		this.menu = menu;
 		this.duration = duration;
 		this.onToggled = onToggled;
+		EndRun = Shutdown;
 
 		BuildNativeMenu();
 	}
+
+	/// <summary>
+	/// Gets or sets what ends the run once a shutdown has been claimed.
+	/// </summary>
+	/// <remarks>
+	/// The lifetime's shutdown, or the dispatcher's when there is no lifetime. Settable only so the tests can
+	/// drive Quit and the <c>--for</c> expiry without shutting down the test host's dispatcher.
+	/// </remarks>
+	internal Action EndRun { get; set; }
 
 	/// <summary>
 	/// Gets the native menu the model was projected onto.
@@ -249,7 +259,38 @@ internal sealed class TrayApplication : Application, IDisposable
 		}
 	}
 
-	private void OnQuitRequested(object? sender, EventArgs e) => Shutdown();
+	/// <summary>
+	/// Ends the run for the Quit item.
+	/// </summary>
+	/// <remarks>
+	/// Internal so the tests can drive the path the real Quit item takes, which needs a platform to wire up.
+	/// </remarks>
+	internal void OnQuitRequested(object? sender, EventArgs e) => ShutdownFromUIThread();
+
+	/// <summary>
+	/// Ends the run for the <c>--for</c> expiry.
+	/// </summary>
+	internal void OnDurationExpired()
+	{
+		expiryTimer?.Stop();
+		ShutdownFromUIThread();
+	}
+
+	/// <summary>
+	/// Claims the shutdown and ends the run, from the UI thread that Quit and the expiry are raised on.
+	/// </summary>
+	/// <remarks>
+	/// Every path that ends the run has to claim <see cref="shutdownRequested"/>, not only a signal's. A stop
+	/// action that hangs after Quit or the expiry is still a stop under way, so the next Ctrl+C or
+	/// <c>SIGTERM</c> must get its default handling and end the process, as it does in the console mode.
+	/// </remarks>
+	private void ShutdownFromUIThread()
+	{
+		if (Interlocked.Exchange(ref shutdownRequested, 1) == 0)
+		{
+			EndRun();
+		}
+	}
 
 	/// <summary>
 	/// Ends the run the way the Quit item does, from any thread.
@@ -269,7 +310,7 @@ internal sealed class TrayApplication : Application, IDisposable
 			return false;
 		}
 
-		Dispatcher.UIThread.Post(Shutdown);
+		Dispatcher.UIThread.Post(() => EndRun());
 		return true;
 	}
 
@@ -317,11 +358,7 @@ internal sealed class TrayApplication : Application, IDisposable
 		}
 
 		expiryTimer = new DispatcherTimer { Interval = window };
-		expiryTimer.Tick += (_, _) =>
-		{
-			expiryTimer.Stop();
-			Shutdown();
-		};
+		expiryTimer.Tick += (_, _) => OnDurationExpired();
 
 		expiryTimer.Start();
 	}
