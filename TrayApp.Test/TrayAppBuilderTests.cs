@@ -564,6 +564,67 @@ public class TrayAppBuilderTests
 	}
 
 	[TestMethod]
+	public void LoadPreferences_WhenTheProviderCannotRead_StartsWithDefaultsAndHandsBackTheMessage()
+	{
+		// A corrupt or hand-edited tray.json, or no file yet in a directory that cannot be written to: the
+		// load throws before there is a tray to report it in, and a plain launch must still start.
+		FailingPersistenceProvider provider = new() { FailReads = true };
+		bool awake = false;
+		bool setterCalled = false;
+
+		TrayAppDefinition app = TrayAppBuilder.Create("demo")
+			.Toggle(
+				"Keep awake",
+				() => awake,
+				value =>
+				{
+					setterCalled = true;
+					awake = value;
+				},
+				persistAs: "awake")
+			.Preferences(provider)
+			.Build();
+
+		using DebouncedPreferenceStore store = new(provider, "tray", Debounce);
+
+		string? error = TrayAppBuilder.LoadPreferences(app, store);
+
+		Assert.AreEqual("Could not load preferences: tray.json is not valid JSON", error);
+		Assert.IsFalse(setterCalled);
+		Assert.IsNull(store.Get("awake"));
+	}
+
+	[TestMethod]
+	public async Task FinishAsync_WhenTheProviderCannotWrite_ReportsItAndKeepsTheExitCode()
+	{
+		// The debounced write has already failed and left the store dirty; the flush on Quit fails again.
+		FailingPersistenceProvider provider = new();
+		// FinishAsync disposes the store; disposing it again here is a no-op.
+		using DebouncedPreferenceStore store = new(provider, "tray", TimeSpan.FromHours(1));
+		await store.LoadAsync().ConfigureAwait(false);
+		store.Set("awake", true);
+		provider.FailWrites = true;
+
+		TextWriter original = Console.Error;
+		using StringWriter error = new();
+		Console.SetError(error);
+
+		int exitCode;
+
+		try
+		{
+			exitCode = await TrayAppBuilder.FinishAsync(3, store).ConfigureAwait(false);
+		}
+		finally
+		{
+			Console.SetError(original);
+		}
+
+		Assert.AreEqual(3, exitCode);
+		StringAssert.Contains(error.ToString(), "Could not save preferences: the disk is full");
+	}
+
+	[TestMethod]
 	public async Task LoadPreferences_WhenNothingRefuses_HandsBackNoMessage()
 	{
 		InMemoryPersistenceProvider<string> provider = new();
