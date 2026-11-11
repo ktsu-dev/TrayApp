@@ -61,7 +61,9 @@ public static class CommandLineParser
 		for (int index = 0; index < args.Count; index++)
 		{
 			string argument = args[index];
-			ReadResult result = ReadStandardOption(args, ref index, argument, appOptions, state, out error);
+			ReadResult result = IsAttachedValue(argument, appOptions)
+				? ReadAttachedValue(argument, appOptions, state, out error)
+				: ReadStandardOption(args, ref index, argument, appOptions, state, out error);
 
 			if (result == ReadResult.Failed || (result == ReadResult.NotRecognised
 				&& !TryReadAppOption(args, ref index, argument, appOptions, state, out error)))
@@ -81,6 +83,68 @@ public static class CommandLineParser
 		options = state.ToOptions();
 		error = string.Empty;
 		return true;
+	}
+
+	/// <summary>
+	/// Whether <paramref name="argument"/> is a long option with its value attached, as in <c>--for=5s</c>.
+	/// </summary>
+	/// <remarks>
+	/// An argument that is itself a recognised spelling is read as typed, so an application alias that holds
+	/// an <c>=</c> still works.
+	/// </remarks>
+	private static bool IsAttachedValue(string argument, IReadOnlyList<AppOption> appOptions) =>
+		argument.StartsWith("--", StringComparison.Ordinal)
+		&& argument.Contains('=', StringComparison.Ordinal)
+		&& !IsKnownSwitch(argument, appOptions);
+
+	/// <summary>
+	/// Reads a long option given as <c>--name=value</c>, the GNU and System.CommandLine form.
+	/// </summary>
+	/// <remarks>
+	/// The argument is split at its first <c>=</c>. Everything after it is the value, even when it starts with
+	/// <c>-</c>, which is what lets <c>--reason=--display</c> pass a value the separate form would refuse.
+	/// </remarks>
+	private static ReadResult ReadAttachedValue(
+		string argument,
+		IReadOnlyList<AppOption> appOptions,
+		ParseState state,
+		out string error)
+	{
+		int equals = argument.IndexOf('=', StringComparison.Ordinal);
+		string name = argument[..equals];
+		string value = argument[(equals + 1)..];
+
+		bool isDuration = name == "--for";
+		AppOption? matched = isDuration ? null : appOptions.FirstOrDefault(option => option.Matches(name));
+
+		if (!isDuration && matched is null)
+		{
+			error = StandardAliases.Contains(name, StringComparer.Ordinal)
+				? $"'{name}' does not take a value."
+				: $"Unknown option '{name}'. Run with --help for the list.";
+			return ReadResult.Failed;
+		}
+
+		if (matched is { TakesValue: false })
+		{
+			error = $"'{name}' does not take a value.";
+			return ReadResult.Failed;
+		}
+
+		if (value.Length == 0)
+		{
+			error = $"'{name}' needs a value.";
+			return ReadResult.Failed;
+		}
+
+		if (isDuration)
+		{
+			return ReadDurationValue(value, name, state, out error);
+		}
+
+		state.Matches.Add(new AppOptionMatch(matched!, value));
+		error = string.Empty;
+		return ReadResult.Read;
 	}
 
 	private static ReadResult ReadStandardOption(
@@ -131,11 +195,13 @@ public static class CommandLineParser
 		ParseState state,
 		out string error)
 	{
-		if (!TryTakeValue(args, ref index, argument, appOptions, out string text, out error))
-		{
-			return ReadResult.Failed;
-		}
+		return TryTakeValue(args, ref index, argument, appOptions, out string text, out error)
+			? ReadDurationValue(text, argument, state, out error)
+			: ReadResult.Failed;
+	}
 
+	private static ReadResult ReadDurationValue(string text, string argument, ParseState state, out string error)
+	{
 		if (!DurationParser.TryParseAnyLength(text, out TimeSpan duration))
 		{
 			error = $"'{text}' is not a duration. Try 45s, 90m, 2h, or 1h30m.";
@@ -149,6 +215,7 @@ public static class CommandLineParser
 		}
 
 		state.Duration = duration;
+		error = string.Empty;
 		return ReadResult.Read;
 	}
 

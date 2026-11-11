@@ -4,6 +4,7 @@ namespace ktsu.TrayApp.Test;
 
 using System;
 using System.Diagnostics;
+using System.IO;
 using System.Threading.Tasks;
 using ktsu.Essentials;
 using ktsu.Essentials.PersistenceProviders.InMemory;
@@ -149,6 +150,68 @@ public class DebouncedPreferenceStoreTests
 		Assert.AreEqual(0, provider.Writes);
 
 		await store.FlushAsync().ConfigureAwait(false);
+	}
+
+	[TestMethod]
+	public async Task Dispose_WhileADebouncedWriteIsUnderWay_ReportsNoFailure()
+	{
+		using GatedPersistenceProvider provider = new(new InMemoryPersistenceProvider<string>());
+		using StringWriter errors = new();
+		DebouncedPreferenceStore store = new(provider, Key, Debounce, errors);
+		await store.LoadAsync().ConfigureAwait(false);
+
+		// The exit path: the flush holds the write while a change made just before it lets the debounce fire,
+		// so the timer's callback is waiting for the write when the flush finishes and the store is disposed.
+		store.Set("running", true);
+		Task flush = store.FlushAsync();
+		await WaitUntilAsync(() => provider.Started == 1).ConfigureAwait(false);
+
+		store.Set("verbose", true);
+		await Task.Delay(Debounce * 3).ConfigureAwait(false);
+
+		provider.Open();
+		await flush.ConfigureAwait(false);
+		store.Dispose();
+
+		// The callback's own write goes through after the disposal; it must not report the save as failed.
+		await WaitUntilAsync(() => provider.Started == 2).ConfigureAwait(false);
+		provider.Open();
+		await WaitUntilAsync(() => provider.Completed == 2).ConfigureAwait(false);
+		await Task.Delay(Debounce * 2).ConfigureAwait(false);
+
+		Assert.AreEqual(string.Empty, errors.ToString());
+	}
+
+	[TestMethod]
+	public async Task DebounceElapsed_AfterDispose_DoesNothing()
+	{
+		CountingPersistenceProvider provider = new(new InMemoryPersistenceProvider<string>());
+		using StringWriter errors = new();
+		DebouncedPreferenceStore store = new(provider, Key, Debounce, errors);
+		await store.LoadAsync().ConfigureAwait(false);
+
+		store.Set("running", true);
+		store.Dispose();
+
+		// A callback the timer queued before Dispose can start after it: Timer.Dispose does not recall one.
+		// It cannot be made to arrive late on purpose, so this calls the callback's target directly.
+		store.OnDebounceElapsed(state: null);
+		await Task.Delay(Debounce * 2).ConfigureAwait(false);
+
+		Assert.AreEqual(string.Empty, errors.ToString());
+		Assert.AreEqual(0, provider.Writes);
+	}
+
+	private static async Task WaitUntilAsync(Func<bool> condition)
+	{
+		Stopwatch elapsed = Stopwatch.StartNew();
+
+		while (!condition() && elapsed.Elapsed < Patience)
+		{
+			await Task.Delay(20).ConfigureAwait(false);
+		}
+
+		Assert.IsTrue(condition(), $"The condition did not hold within {Patience}.");
 	}
 
 	private static async Task WaitForWritesAsync(CountingPersistenceProvider provider, int expected)

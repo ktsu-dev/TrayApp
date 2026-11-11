@@ -60,9 +60,17 @@ public static class StatusReport
 
 		StringBuilder report = new();
 		report.AppendLine(HelpText.Version(name));
+		string padding = new(' ', labelWidth);
 		foreach ((string label, string value) in rows)
 		{
-			report.AppendLine($"{(label + ':').PadRight(labelWidth)}{value}");
+			// A value can span lines (an exception message, a list of helpers). Every line after the first is
+			// indented to the value column, as --help does, so it doesn't read as a row of its own.
+			string[] lines = value.Split('\n');
+			report.AppendLine($"{(label + ':').PadRight(labelWidth)}{lines[0].TrimEnd('\r')}");
+			foreach (string line in lines[1..])
+			{
+				report.AppendLine($"{padding}{line.TrimEnd('\r')}");
+			}
 		}
 
 		// Every row above appended a newline; the report is quoted and compared in tests, so it ends where
