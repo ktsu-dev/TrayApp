@@ -1,6 +1,6 @@
-## v1.5.3 (patch)
+## v1.5.4 (patch)
 
-Changes since v1.5.2:
+Changes since v1.5.3:
 
-- Show underscores in tray menu text instead of reading them as access keys [patch] (#91) (matt-edmondson)
+- Start with defaults when preferences can't be read, and exit cleanly when they can't be saved [patch] (#92) (matt-edmondson)
 
