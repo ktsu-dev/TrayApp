@@ -217,6 +217,33 @@ public class CommandLineParserTests
 	}
 
 	[TestMethod]
+	[DataRow("--for=5s")]
+	[DataRow("--other=x")]
+	[DataRow("--reason=again")]
+	[DataRow("--status=")]
+	public void TryParse_WithAValueOptionFollowedByAnAttachedSwitch_FailsInsteadOfTakingTheSwitchAsItsValue(string next)
+	{
+		AppOption reason = AppOption.Value(["-r", "--reason"], "text", "Why.", _ => { });
+		AppOption other = AppOption.Value(["--other"], "text", "Other.", _ => { });
+
+		Assert.IsFalse(CommandLineParser.TryParse(["--reason", next], [reason, other], out _, out string error));
+		Assert.AreEqual("'--reason' needs a value.", error);
+	}
+
+	[TestMethod]
+	[DataRow("--unknown=x")]
+	[DataRow("--=x")]
+	[DataRow("a=b")]
+	public void TryParse_WithAValueOptionFollowedByAnEqualsThatNamesNoSwitch_TakesItAsTheValue(string value)
+	{
+		AppOption reason = AppOption.Value(["-r", "--reason"], "text", "Why.", _ => { });
+
+		Assert.IsTrue(CommandLineParser.TryParse(["--reason", value], [reason], out CommandLineOptions options, out string error), error);
+		Assert.AreEqual(1, options.Matches.Count);
+		Assert.AreEqual(value, options.Matches[0].Value);
+	}
+
+	[TestMethod]
 	[DataRow("-")]
 	[DataRow("-5")]
 	[DataRow("some text")]

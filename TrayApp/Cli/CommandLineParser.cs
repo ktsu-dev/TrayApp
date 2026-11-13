@@ -265,8 +265,9 @@ public static class CommandLineParser
 	{
 		// A switch after a value option means the value was forgotten. Taking the switch as the value would
 		// drop it without a word, so "--reason --status" would start a run instead of reporting. Anything
-		// else is a value, even if it starts with '-', so "-" and "-5" still get through.
-		if (index + 1 >= args.Count || IsKnownSwitch(args[index + 1], appOptions))
+		// else is a value, even if it starts with '-', so "-" and "-5" still get through. A switch given in the
+		// attached form counts too, so "--reason --for=5s" can't take "--for=5s" as the reason.
+		if (index + 1 >= args.Count || IsKnownSwitchInEitherForm(args[index + 1], appOptions))
 		{
 			value = string.Empty;
 			error = $"'{option}' needs a value.";
@@ -278,6 +279,12 @@ public static class CommandLineParser
 		error = string.Empty;
 		return true;
 	}
+
+	private static bool IsKnownSwitchInEitherForm(string argument, IReadOnlyList<AppOption> appOptions) =>
+		IsKnownSwitch(argument, appOptions)
+		|| (argument.StartsWith("--", StringComparison.Ordinal)
+			&& argument.IndexOf('=', StringComparison.Ordinal) is > 2 and int equals
+			&& IsKnownSwitch(argument[..equals], appOptions));
 
 	private static bool IsKnownSwitch(string argument, IReadOnlyList<AppOption> appOptions) =>
 		StandardAliases.Contains(argument, StringComparer.Ordinal) || appOptions.Any(option => option.Matches(argument));
