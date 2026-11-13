@@ -204,4 +204,65 @@ public class TrayMenuTests
 		TrayToggleItem unsaved = Toggle("Switch", () => false, _ => { });
 		Assert.IsNull(unsaved.PreferenceKey);
 	}
+
+	[TestMethod]
+	public void Activate_WhenTheStatusGetterThrows_RecordsTheFailureInsteadOfThrowing()
+	{
+		int calls = 0;
+		TrayMenu menu = BuildMenu(() => ++calls > 1 ? throw new System.IO.IOException("state file unreadable") : "holding");
+		menu.Refresh();
+
+		bool succeeded = menu.Activate(menu.QuitItem);
+
+		Assert.IsTrue(succeeded, "The action itself ran, so the click succeeded.");
+		Assert.AreEqual("state file unreadable", menu.LastError);
+		Assert.AreEqual("Demo failed: state file unreadable", menu.StatusItem!.Header);
+	}
+
+	[TestMethod]
+	public void Refresh_WhenAToggleGetterThrows_RecordsTheFailureAndRefreshesTheRest()
+	{
+		bool on = true;
+		bool broken = false;
+		bool second = false;
+
+		TrayToggleItem flaky = Toggle("Flaky", () => broken ? throw new InvalidOperationException("device unplugged") : on, value => on = value);
+		TrayToggleItem disabledByGetter = Toggle("Enabled", () => true, _ => { }, () => broken ? throw new InvalidOperationException("enabled unreadable") : true);
+		TrayToggleItem other = Toggle("Other", () => second, value => second = value);
+		TrayMenu menu = BuildMenu(() => "idle", flaky, disabledByGetter, other);
+		menu.Refresh();
+
+		broken = true;
+		second = true;
+		menu.Refresh();
+
+		Assert.IsTrue(flaky.IsChecked, "A toggle whose getter throws keeps what it showed last.");
+		Assert.IsTrue(other.IsChecked, "The items after the failing one still refresh.");
+		Assert.AreEqual("enabled unreadable", menu.LastError);
+		Assert.AreEqual("Demo failed: enabled unreadable", menu.StatusItem!.Header);
+	}
+
+	[TestMethod]
+	public void Activate_WhenAToggleGetterThrowsInTheRefresh_DoesNotThrow()
+	{
+		bool on = false;
+		bool broken = false;
+
+		TrayToggleItem toggle = Toggle(
+			"Switch",
+			() => broken ? throw new InvalidOperationException("device unplugged") : on,
+			value =>
+			{
+				on = value;
+				broken = true;
+			});
+		TrayMenu menu = BuildMenu(status: null, toggle);
+		menu.Refresh();
+
+		bool succeeded = menu.Activate(toggle);
+
+		Assert.IsTrue(succeeded);
+		Assert.IsTrue(on);
+		Assert.AreEqual("device unplugged", menu.LastError);
+	}
 }

@@ -418,9 +418,12 @@ internal sealed class TrayApplication : Application, IDisposable
 
 		if (trayIcon is not null)
 		{
-			bool active = app.IsActive?.Invoke() ?? false;
+			bool active = false;
 
-			if (app.Icons is not null)
+			// A tool whose active-state getter throws keeps the icon it had; the failure is in the status line.
+			bool known = app.IsActive is not { } isActive || menu.TryRead(isActive, out active);
+
+			if (known && app.Icons is not null)
 			{
 				trayIcon.Icon = app.Icons.For(active);
 			}

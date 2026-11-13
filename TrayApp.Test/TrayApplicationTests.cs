@@ -570,4 +570,22 @@ public class TrayApplicationTests
 		Assert.AreEqual("Demo", TrayApplication.ToolTipFor(null, "Demo", isLinux: false));
 		Assert.AreEqual("Demo", TrayApplication.ToolTipFor(null, "Demo", isLinux: true));
 	}
+
+	[TestMethod]
+	public void Activate_WhenAGetterThrowsInTheRefresh_KeepsTheTrayRunning()
+	{
+		int reads = 0;
+		TrayAppDefinition app = TrayAppBuilder.Create("demo")
+			.DisplayName("Demo")
+			.Status(() => ++reads > 1 ? throw new System.IO.IOException("state file unreadable") : "idle")
+			.Command("Go", () => { })
+			.Build();
+
+		using TrayApplication host = Host(app, out TrayMenu menu);
+
+		host.Activate(menu.Items.Single(item => item.Header == "Go"));
+
+		Assert.AreEqual("state file unreadable", menu.LastError);
+		Assert.AreEqual("Demo failed: state file unreadable", ((NativeMenuItem)host.NativeMenu.Items[0]).Header);
+	}
 }
