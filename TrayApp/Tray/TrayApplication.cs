@@ -111,6 +111,12 @@ internal sealed class TrayApplication : Application, IDisposable
 	{
 		menu.QuitRequested += OnQuitRequested;
 
+		// Both images are decoded before the tool starts, so one Avalonia can't read fails here and takes the
+		// console fallback, rather than the first time the tool turns on - which ends the run loop after the
+		// toggle has already been remembered.
+		_ = app.Icons?.Active;
+		_ = app.Icons?.Idle;
+
 		trayIcon = new TrayIcon { Menu = NativeMenu, IsVisible = true };
 
 		// A left click is the fastest way to flip the first switch on Windows. Linux status-notifier hosts

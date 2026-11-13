@@ -70,4 +70,26 @@ public class TrayIconSetTests
 		Assert.AreEqual(SampleResource, icons.ActiveResourceName);
 		Assert.AreEqual(SampleResource, icons.IdleResourceName);
 	}
+
+	[TestMethod]
+	public void Validate_WithBothImagesPresent_DoesNotThrow() =>
+		TrayIconSet.FromResources(ThisAssembly, SampleResource, SampleResource).Validate();
+
+	[TestMethod]
+	public void Validate_WithAMisspelledActiveImage_NamesIt()
+	{
+		InvalidOperationException ex = Assert.ThrowsExactly<InvalidOperationException>(
+			() => TrayIconSet.FromResources(ThisAssembly, "Assets.sampel.png", SampleResource).Validate());
+
+		Assert.Contains("Assets.sampel.png", ex.Message, StringComparison.Ordinal);
+	}
+
+	[TestMethod]
+	public void Validate_WithAMisspelledIdleImage_NamesIt()
+	{
+		InvalidOperationException ex = Assert.ThrowsExactly<InvalidOperationException>(
+			() => TrayIconSet.FromResources(ThisAssembly, SampleResource, "Assets.sampel.png").Validate());
+
+		Assert.Contains("Assets.sampel.png", ex.Message, StringComparison.Ordinal);
+	}
 }

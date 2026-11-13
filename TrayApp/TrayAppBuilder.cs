@@ -404,7 +404,7 @@ public sealed class TrayAppBuilder
 	/// Parses the command line and runs the tool.
 	/// </summary>
 	/// <param name="args">The arguments, as handed to <c>Main</c>.</param>
-	/// <returns>The process exit code: 0 success, 1 the platform refused, 2 the command line was wrong.</returns>
+	/// <returns>The process exit code: 0 success, 1 the platform refused, 2 the command line was wrong or a tray icon resource is missing.</returns>
 	/// <exception cref="ArgumentNullException"><paramref name="args"/> is <see langword="null"/>.</exception>
 	/// <remarks>
 	/// Nothing is awaited before the tray starts, on purpose. Avalonia's macOS backend has to run on the
@@ -432,6 +432,13 @@ public sealed class TrayAppBuilder
 		{
 			Console.WriteLine(HelpText.Version(app.Name));
 			return Task.FromResult(ExitSuccess);
+		}
+
+		// Checked before anything runs the tool's code, so a misspelled icon name fails on the first run of
+		// any kind rather than the first time the tool turns on in the tray.
+		if (!IconsArePresent(app))
+		{
+			return Task.FromResult(ExitUsage);
 		}
 
 		bool useTray = UseTray(options);
@@ -472,6 +479,20 @@ public sealed class TrayAppBuilder
 		finally
 		{
 			store?.Dispose();
+		}
+	}
+
+	private static bool IconsArePresent(TrayAppDefinition app)
+	{
+		try
+		{
+			app.Icons?.Validate();
+			return true;
+		}
+		catch (InvalidOperationException ex)
+		{
+			Console.Error.WriteLine($"{app.Name}: {ex.Message}");
+			return false;
 		}
 	}
 
