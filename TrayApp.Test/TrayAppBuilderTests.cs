@@ -810,4 +810,36 @@ public class TrayAppBuilderTests
 		Assert.AreEqual("One", items[2].Header);
 		Assert.AreEqual("Quit Demo", items[4].Header);
 	}
+
+	[TestMethod]
+	[DataRow("Assets.sampel.png", "Assets.sample.png")]
+	[DataRow("Assets.sample.png", "Assets.sampel.png")]
+	public async Task RunAsync_WithAMisspelledIcon_ExitsTwoBeforeTheToolStarts(string active, string idle)
+	{
+		bool started = false;
+
+		int exitCode = await TrayAppBuilder.Create("demo")
+			.Icons(typeof(TrayAppBuilderTests).Assembly, active, idle)
+			.OnStart(() => started = true)
+			.RunAsync(["--no-tray", "--for", "0.05s"])
+			.ConfigureAwait(false);
+
+		Assert.AreEqual(2, exitCode);
+		Assert.IsFalse(started);
+	}
+
+	[TestMethod]
+	public async Task RunAsync_WithBothIconsPresent_Runs()
+	{
+		bool started = false;
+
+		int exitCode = await TrayAppBuilder.Create("demo")
+			.Icons(typeof(TrayAppBuilderTests).Assembly, "Assets.sample.png", "Assets.sample.png")
+			.OnStart(() => started = true)
+			.RunAsync(["--no-tray", "--for", "0.05s"])
+			.ConfigureAwait(false);
+
+		Assert.AreEqual(0, exitCode);
+		Assert.IsTrue(started);
+	}
 }

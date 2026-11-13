@@ -99,6 +99,21 @@ public sealed class TrayIconSet
 	public WindowIcon For(bool isActive) => isActive ? Active : Idle;
 
 	/// <summary>
+	/// Checks that both images are in the assembly, without decoding either.
+	/// </summary>
+	/// <exception cref="InvalidOperationException">Either resource is missing; the message names what the assembly does have.</exception>
+	/// <remarks>
+	/// The images load lazily, so start-up only touches the one for the current state. Without this a
+	/// misspelled active image passes every run that stays idle, then throws the first time the tool turns on
+	/// - after the toggle has been remembered, so every later launch fails the same way.
+	/// </remarks>
+	internal void Validate()
+	{
+		OpenResource(Assembly, ActiveResourceName).Dispose();
+		OpenResource(Assembly, IdleResourceName).Dispose();
+	}
+
+	/// <summary>
 	/// Opens an embedded resource by name.
 	/// </summary>
 	/// <param name="assembly">The assembly to look in.</param>
