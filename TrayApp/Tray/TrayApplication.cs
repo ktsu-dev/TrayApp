@@ -114,11 +114,8 @@ internal sealed class TrayApplication : Application, IDisposable
 		// Both images are decoded before the tool starts, so one Avalonia can't read fails here and takes the
 		// console fallback, rather than the first time the tool turns on - which ends the run loop after the
 		// toggle has already been remembered.
-		if (app.Icons is not null)
-		{
-			_ = app.Icons.Active;
-			_ = app.Icons.Idle;
-		}
+		_ = app.Icons?.Active;
+		_ = app.Icons?.Idle;
 
 		trayIcon = new TrayIcon { Menu = NativeMenu, IsVisible = true };
 
