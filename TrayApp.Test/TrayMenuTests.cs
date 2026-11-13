@@ -227,7 +227,19 @@ public class TrayMenuTests
 		bool second = false;
 
 		TrayToggleItem flaky = Toggle("Flaky", () => broken ? throw new InvalidOperationException("device unplugged") : on, value => on = value);
-		TrayToggleItem disabledByGetter = Toggle("Enabled", () => true, _ => { }, () => broken ? throw new InvalidOperationException("enabled unreadable") : true);
+		TrayToggleItem disabledByGetter = Toggle(
+			"Enabled",
+			() => true,
+			_ => { },
+			() =>
+			{
+				if (broken)
+				{
+					throw new InvalidOperationException("enabled unreadable");
+				}
+
+				return true;
+			});
 		TrayToggleItem other = Toggle("Other", () => second, value => second = value);
 		TrayMenu menu = BuildMenu(() => "idle", flaky, disabledByGetter, other);
 		menu.Refresh();
