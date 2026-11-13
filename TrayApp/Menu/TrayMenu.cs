@@ -99,12 +99,78 @@ public sealed class TrayMenu
 	/// <summary>
 	/// Re-reads every item's state from the tool.
 	/// </summary>
+	/// <remarks>
+	/// The getters belong to the tool as much as its actions do, and a refresh runs from the same places a
+	/// click does - straight after one, and from a <c>RefreshOn</c> post with no click at all - so a getter
+	/// that throws is handled the way a failed action is: recorded in <see cref="LastError"/>, written to
+	/// standard error, and shown in the status line. An item whose getter throws keeps what it showed last,
+	/// and the rest of the menu still refreshes.
+	/// </remarks>
 	public void Refresh()
 	{
+		string? failure = null;
+
 		foreach (TrayMenuItem item in Items)
 		{
-			item.Refresh();
+			failure = TryRead(item.Refresh) ?? failure;
 		}
+
+		if (failure is not null)
+		{
+			RecordFailure(failure);
+
+			// The status line was read before the failure was known, and reads LastError first, so this pass
+			// shows the failure without calling the tool's status getter again.
+			StatusItem?.Refresh();
+		}
+	}
+
+	/// <summary>
+	/// Reads one of the tool's getters outside a refresh, under the same failure handling.
+	/// </summary>
+	/// <param name="read">The getter to call.</param>
+	/// <param name="value">The getter's value, or <see langword="false"/> when it threw.</param>
+	/// <returns><see langword="true"/> when the getter returned; <see langword="false"/> when it threw and the failure was recorded.</returns>
+	/// <remarks>
+	/// The host reads the tool's active state for the tray icon after the menu has refreshed, and that read
+	/// can fail the same way any other getter can.
+	/// </remarks>
+	internal bool TryRead(Func<bool> read, out bool value)
+	{
+		bool result = false;
+		string? failure = TryRead(() => result = read());
+		value = result;
+
+		if (failure is null)
+		{
+			return true;
+		}
+
+		RecordFailure(failure);
+		return false;
+	}
+
+	[SuppressMessage(
+		"Design",
+		"CA1031:Do not catch general exception types",
+		Justification = "The getter belongs to the consuming tool, so there is no exception type to filter on beyond the fatal ones FatalError excludes, and letting one escape a refresh takes down a process the user asked to keep running.")]
+	private static string? TryRead(Action read)
+	{
+		try
+		{
+			read();
+			return null;
+		}
+		catch (Exception ex) when (FatalError.IsNotFatal(ex))
+		{
+			return ex.Message;
+		}
+	}
+
+	private void RecordFailure(string message)
+	{
+		LastError = message;
+		Console.Error.WriteLine($"{displayName}: {message}");
 	}
 
 	/// <summary>
@@ -145,7 +211,11 @@ public sealed class TrayMenu
 	/// Runs one of the tool's actions under the same failure handling as a click, and refreshes the menu.
 	/// </summary>
 	/// <param name="action">The action to run.</param>
-	/// <returns><see langword="true"/> when the action completed without throwing.</returns>
+	/// <returns>
+	/// <see langword="true"/> when the action completed without throwing. A getter that throws in the refresh
+	/// afterwards is recorded in <see cref="LastError"/> but does not change this, because the action itself
+	/// still happened.
+	/// </returns>
 	/// <exception cref="ArgumentNullException"><paramref name="action"/> is <see langword="null"/>.</exception>
 	/// <remarks>
 	/// The host uses this for the work that is not a click but fails the same way and has the same nowhere to
@@ -168,8 +238,7 @@ public sealed class TrayMenu
 		}
 		catch (Exception ex) when (FatalError.IsNotFatal(ex))
 		{
-			LastError = ex.Message;
-			Console.Error.WriteLine($"{displayName}: {ex.Message}");
+			RecordFailure(ex.Message);
 			succeeded = false;
 		}
 
