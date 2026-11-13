@@ -277,4 +277,28 @@ public class TrayMenuTests
 		Assert.IsTrue(on);
 		Assert.AreEqual("device unplugged", menu.LastError);
 	}
+
+	[TestMethod]
+	public void TryRead_WhenTheGetterReturns_GivesItsValueAndLeavesNoError()
+	{
+		TrayMenu menu = BuildMenu(() => "idle");
+
+		bool read = menu.TryRead(() => true, out bool value);
+
+		Assert.IsTrue(read);
+		Assert.IsTrue(value);
+		Assert.IsNull(menu.LastError);
+	}
+
+	[TestMethod]
+	public void TryRead_WhenTheGetterThrows_RecordsTheFailure()
+	{
+		TrayMenu menu = BuildMenu(() => "idle");
+
+		bool read = menu.TryRead(() => throw new InvalidOperationException("device unplugged"), out bool value);
+
+		Assert.IsFalse(read);
+		Assert.IsFalse(value);
+		Assert.AreEqual("device unplugged", menu.LastError);
+	}
 }
